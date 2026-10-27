@@ -1,4 +1,4 @@
-// api/totem-angra.js (Mestre de RPG Acessível com Boas-Vindas Automáticas e Sem Bips)
+// api/totem-angra.js (Mestre de RPG Acessível com Boas-Vindas e Escolha de Aventura)
 export const config = {
   api: { bodyParser: false },
 };
@@ -6,7 +6,7 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Mestre de RPG Audio-Acessivel Online (Com Boas-Vindas)!",
+      status: "Mestre de RPG Audio-Acessivel Online (Com Boas-Vindas e Save)!",
       chaveConfigurada: !!process.env.GEMINI_API_KEY,
     });
   }
@@ -26,23 +26,23 @@ export default async function handler(req, res) {
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     let bodyGeminiTexto;
 
-    // CENÁRIO A: O aparelho acabou de ligar na tomada -> Gera boas-vindas e instruções por voz!
+    // CENÁRIO A: Aparelho acabou de ligar -> Mestre dá boas-vindas e pergunta sobre o save
     if (acaoInicial === "boas_vindas") {
       const temJogoSalvo = !memoriaAnterior.includes("Início da aventura");
 
       const promptBoasVindas = `
 Você é um Mestre de RPG narrativo criado especialmente para pessoas cegas.
-O aparelho acabou de ser ligado. Crie uma fala de boas-vindas calorosa e clara (máximo de 4 frases curtas, até 55 palavras, sem emojis ou asteriscos) que faça o seguinte:
-1. Dê as boas-vindas ao RPG de Aventuras por Voz e explique de forma simples como jogar: diga que sempre que você terminar de narrar e fizer uma pergunta, basta a pessoa falar a decisão dela em voz alta (ou dizer "Novo jogo" se quiser começar outra história).
+O aparelho acabou de ser ligado. Crie uma fala de boas-vindas calorosa e clara (máximo de 4 frases curtas, até 55 palavras, sem emojis, asteriscos ou formatação markdown):
+1. Dê as boas-vindas ao RPG de Aventuras por Voz.
 2. ${
         temJogoSalvo
-          ? `Diga que encontrou uma aventura salva (${memoriaAnterior}) e pergunte se a pessoa quer continuar de onde parou ou escolher um novo tema.`
-          : `Pergunte qual tipo de aventura a pessoa quer jogar hoje: Fantasia Medieval, Mistério ou Piratas.`
+          ? `Diga que encontrou uma aventura salva e pergunte com clareza: "Você quer continuar de onde parou ou quer começar uma nova aventura?"`
+          : `Pergunte qual tipo de aventura a pessoa quer jogar hoje: Fantasia Medieval, Mistério ou Ficção Científica.`
       }
 
 Retorne APENAS um JSON com as chaves:
 - "transcricao": "[Aparelho Ligado - Boas Vindas]"
-- "resposta": O texto falado de boas-vindas e instruções.
+- "resposta": O texto falado de boas-vindas e a pergunta.
 - "memoria_atualizada": "${memoriaAnterior}"
 `;
 
@@ -51,7 +51,7 @@ Retorne APENAS um JSON com as chaves:
         generationConfig: { responseMimeType: "application/json" },
       };
     } 
-    // CENÁRIO B: Turno normal durante o jogo -> Ouve o áudio do jogador
+    // CENÁRIO B: Turno normal do jogo -> Processa a fala do jogador
     else {
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
@@ -66,7 +66,7 @@ Retorne APENAS um JSON com as chaves:
       const promptRPG = `
 Você é um Mestre de RPG narrativo e imersivo criado especialmente para pessoas cegas.
 Use descrições sensoriais ricas (sons do ambiente, ecos, vento, passos, cheiros, texturas), mas mantenha cada resposta concisa (máximo de 3 a 4 frases curtas, até 45 palavras) para a narração por voz ficar dinâmica.
-Sempre termine narrando o que acontece e dando 2 opções claras ou perguntando o que o jogador faz agora, para que a pessoa cega saiba exatamente a hora em que você parou de falar e que ela já pode responder.
+Sempre termine narrando o que acontece e fazendo uma pergunta clara de escolha ou de rumo (sem emojis, sem asteriscos e sem markdown).
 
 MEMÓRIA ATUAL DA AVENTURA ATÉ AQUI:
 "${memoriaAnterior}"
@@ -74,8 +74,8 @@ MEMÓRIA ATUAL DA AVENTURA ATÉ AQUI:
 INSTRUÇÕES DE RETORNO (JSON OBRIGATÓRIO):
 Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
 1. "transcricao": O que o jogador disse no áudio.
-2. "resposta": A continuação emocionante da história seguindo a decisão do jogador, terminando com uma pergunta clara de escolha (sem emojis, sem asteriscos e sem markdown).
-3. "memoria_atualizada": Um resumo em 2 ou 3 frases curtas acumulando tudo o que é importante na história até agora (cenário atual, itens obtidos, aliados/inimigos, última decisão tomada). Se o jogador pediu "novo jogo" ou "recomeçar", reinicie a memória do zero com a nova aventura escolhida.
+2. "resposta": A continuação da história seguindo a decisão do jogador, terminando com uma pergunta de escolha. Se o jogador respondeu que quer "nova aventura" ou "recomeçar", limpe a história e comece um tema novo.
+3. "memoria_atualizada": O resumo atualizado da história (cenário atual, itens, última decisão). Se o jogador pediu nova aventura, reinicie a memória do zero.
 `;
 
       bodyGeminiTexto = {
@@ -97,7 +97,6 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
       };
     }
 
-    // Chama o Gemini 2.5 Flash para gerar o texto da narração
     const resTexto = await fetch(urlTexto, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -112,8 +111,7 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
     const jsonBruto = dataTexto.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
     let dados = {
       transcricao: "...",
-      resposta:
-        "Bem-vindo ao RPG por voz. Sempre que eu terminar de falar e fizer uma pergunta, basta dizer sua escolha em voz alta. Qual aventura você quer jogar hoje: fantasia medieval ou mistério?",
+      resposta: "Bem-vindo ao RPG por voz. Você quer continuar de onde parou ou iniciar uma nova aventura?",
       memoria_atualizada: memoriaAnterior,
     };
 
@@ -123,7 +121,6 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
       dados.resposta = jsonBruto;
     }
 
-    // Converte a narração da história em voz expressiva (PCM 24kHz)
     const urlTts = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
     const resTts = await fetch(urlTts, {
@@ -135,7 +132,7 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Charon" },
+              prebuiltVoiceConfig: { voiceName: "Charon" }, // Voz imponente de narrador
             },
           },
         },
