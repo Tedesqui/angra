@@ -6,7 +6,7 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Totem Angra Online (v2)!",
+      status: "Totem Angra Online (v3 - Com Transcricao)!",
       chaveConfigurada: !!process.env.GEMINI_API_KEY,
     });
   }
@@ -15,22 +15,14 @@ export default async function handler(req, res) {
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY ausente na Vercel");
-    }
+    if (!apiKey) throw new Error("GEMINI_API_KEY ausente na Vercel");
 
-    // 1. Recebe os bytes PCM do Seeed XIAO e monta o WAV em memória
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const pcmBuffer = Buffer.concat(chunks);
-
-    if (pcmBuffer.length < 1000) {
-      throw new Error(`Audio muito curto recebido: ${pcmBuffer.length} bytes`);
-    }
-
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
-    // 2. ETAPA 1: Gemini 2.5 Flash ouve o turista e gera a resposta em TEXTO
+    // 1. ETAPA 1: Gemini 2.5 Flash transcreve a pergunta e gera a resposta em JSON
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const resTexto = await fetch(urlTexto, {
@@ -48,46 +40,46 @@ export default async function handler(req, res) {
                 },
               },
               {
-                text: "Você é o guia de voz do Totem Turístico de Angra dos Reis - RJ. Ouça o áudio e responda de forma calorosa, direta e muito curta (máximo de 2 frases ou 30 palavras), sem usar emojis nem asteriscos.",
+                text: `Você é o guia de voz do Totem Turístico de Angra dos Reis - RJ.
+Ouça o áudio do turista e retorne APENAS um objeto JSON com duas chaves:
+1. "transcricao": O que a pessoa falou no áudio (ou "[Silêncio/Ruído]" se não houver fala clara).
+2. "resposta": Sua resposta calorosa, direta e curta (máximo 2 frases ou 30 palavras, sem emojis).`,
               },
             ],
           },
         ],
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
       }),
     });
 
     const dataTexto = await resTexto.json();
     if (!resTexto.ok) {
-      console.error("Erro Gemini Texto:", JSON.stringify(dataTexto));
       return res.status(500).json({ etapa: "gemini_texto", erro: dataTexto });
     }
 
-    const textoResposta =
-      dataTexto.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      "Olá! Bem-vindo a Angra dos Reis. Como posso ajudar?";
+    const jsonBruto = dataTexto.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    let dados = { transcricao: "...", resposta: "Olá! Como posso ajudar em Angra dos Reis?" };
+    try {
+      dados = JSON.parse(jsonBruto);
+    } catch (e) {
+      dados.resposta = jsonBruto;
+    }
 
-    console.log("Texto gerado pelo Gemini:", textoResposta);
-
-    // 3. ETAPA 2: Converte o texto gerado em Áudio PCM 24kHz usando o modelo TTS do Gemini
+    // 2. ETAPA 2: Gera o áudio PCM 24kHz da resposta
     const urlTts = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
     const resTts = await fetch(urlTts, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: textoResposta }],
-          },
-        ],
+        contents: [{ role: "user", parts: [{ text: dados.resposta }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: "Aoede",
-              },
+              prebuiltVoiceConfig: { voiceName: "Aoede" },
             },
           },
         },
@@ -95,11 +87,6 @@ export default async function handler(req, res) {
     });
 
     const dataTts = await resTts.json();
-    if (!resTts.ok) {
-      console.error("Erro Gemini TTS:", JSON.stringify(dataTts));
-      return res.status(500).json({ etapa: "gemini_tts", textoGerado: textoResposta, erro: dataTts });
-    }
-
     const partAudio = dataTts.candidates?.[0]?.content?.parts?.find(
       (p) => p.inlineData && p.inlineData.data
     );
@@ -111,12 +98,14 @@ export default async function handler(req, res) {
     const pcm24k = Buffer.from(partAudio.inlineData.data, "base64");
     const pcm16k = reamostrar24kPara16k(pcm24k);
 
+    // Envia a transcrição e a resposta nos Headers HTTP (codificados para manter os acentos)
+    res.setHeader("X-Transcricao", encodeURIComponent(dados.transcricao || ""));
+    res.setHeader("X-Resposta", encodeURIComponent(dados.resposta || ""));
     res.setHeader("Content-Type", "application/octet-stream");
     res.setHeader("Content-Length", pcm16k.length);
     return res.status(200).send(pcm16k);
 
   } catch (err) {
-    console.error("Erro Geral:", err.message);
     return res.status(500).json({ erroGeral: err.message });
   }
 }
@@ -129,8 +118,7 @@ function reamostrar24kPara16k(buf24k) {
   for (let i = 0; i < totalAmostras16k; i++) {
     const idxOrigem = Math.floor((i * 3) / 2) * 2;
     if (idxOrigem + 1 < buf24k.length) {
-      const amostra = buf24k.readInt16LE(idxOrigem);
-      buf16k.writeInt16LE(amostra, i * 2);
+      buf16k.writeInt16LE(buf24k.readInt16LE(idxOrigem), i * 2);
     }
   }
   return buf16k;
