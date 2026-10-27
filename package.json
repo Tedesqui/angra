@@ -4,7 +4,7 @@
   "description": "Backend Serverless do Totem Turistico de Angra dos Reis com Gemini",
   "type": "module",
   "dependencies": {
-    "@google/generative-ai": "^0.21.0"
+    "@google/generative-ai": "latest"
   },
   "engines": {
     "node": ">=18.x"
