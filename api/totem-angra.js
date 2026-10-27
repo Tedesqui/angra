@@ -4,10 +4,9 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // Se você abrir o link no navegador do Mac (GET), ele testa se a chave está configurada!
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Totem Angra Online!",
+      status: "Totem Angra Online (v2)!",
       chaveConfigurada: !!process.env.GEMINI_API_KEY,
     });
   }
@@ -17,73 +16,99 @@ export default async function handler(req, res) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("A variavel GEMINI_API_KEY nao foi configurada na Vercel!");
+      throw new Error("GEMINI_API_KEY ausente na Vercel");
     }
 
-    // 1. Recebe o áudio PCM 16kHz enviado pelo Seeed XIAO
+    // 1. Recebe os bytes PCM do Seeed XIAO e monta o WAV em memória
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const pcmBuffer = Buffer.concat(chunks);
+
+    if (pcmBuffer.length < 1000) {
+      throw new Error(`Audio muito curto recebido: ${pcmBuffer.length} bytes`);
+    }
+
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
-    // 2. Chama o Gemini 2.5 Flash pedindo resposta DIRETO EM ÁUDIO (Voz Nativa)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    // 2. ETAPA 1: Gemini 2.5 Flash ouve o turista e gera a resposta em TEXTO
+    const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    const payload = {
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              inlineData: {
-                mimeType: "audio/wav",
-                data: wavBuffer.toString("base64"),
+    const resTexto = await fetch(urlTexto, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                inlineData: {
+                  mimeType: "audio/wav",
+                  data: wavBuffer.toString("base64"),
+                },
               },
-            },
-            {
-              text: "Você é o guia turístico oficial de Angra dos Reis - RJ. Ouça o turista e responda em português (ou no idioma que ele falar) de forma simpática, direta e muito curta (no máximo 2 frases rápidas).",
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: "Aoede", // Voz natural da IA (pode trocar por "Puck" ou "Kore")
+              {
+                text: "Você é o guia de voz do Totem Turístico de Angra dos Reis - RJ. Ouça o áudio e responda de forma calorosa, direta e muito curta (máximo de 2 frases ou 30 palavras), sem usar emojis nem asteriscos.",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const dataTexto = await resTexto.json();
+    if (!resTexto.ok) {
+      console.error("Erro Gemini Texto:", JSON.stringify(dataTexto));
+      return res.status(500).json({ etapa: "gemini_texto", erro: dataTexto });
+    }
+
+    const textoResposta =
+      dataTexto.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+      "Olá! Bem-vindo a Angra dos Reis. Como posso ajudar?";
+
+    console.log("Texto gerado pelo Gemini:", textoResposta);
+
+    // 3. ETAPA 2: Converte o texto gerado em Áudio PCM 24kHz usando o modelo TTS do Gemini
+    const urlTts = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+
+    const resTts = await fetch(urlTts, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: textoResposta }],
+          },
+        ],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: "Aoede",
+              },
             },
           },
         },
-      },
-    };
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      }),
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("Erro da API Gemini:", JSON.stringify(data));
-      return res.status(500).json({ erroGemini: data });
+    const dataTts = await resTts.json();
+    if (!resTts.ok) {
+      console.error("Erro Gemini TTS:", JSON.stringify(dataTts));
+      return res.status(500).json({ etapa: "gemini_tts", textoGerado: textoResposta, erro: dataTts });
     }
 
-    // 3. Extrai o áudio PCM 24kHz gerado pelo Gemini
-    const partAudio = data.candidates?.[0]?.content?.parts?.find(
-      (p) => p.inlineData && p.inlineData.mimeType.startsWith("audio/")
+    const partAudio = dataTts.candidates?.[0]?.content?.parts?.find(
+      (p) => p.inlineData && p.inlineData.data
     );
 
     if (!partAudio) {
-      console.error("Resposta sem audio:", JSON.stringify(data));
-      return res.status(500).json({ erro: "Gemini nao retornou audio", data });
+      return res.status(500).json({ etapa: "sem_audio_no_tts", dataTts });
     }
 
     const pcm24k = Buffer.from(partAudio.inlineData.data, "base64");
-
-    // 4. Converte de 24.000 Hz para 16.000 Hz para tocar na velocidade certa no XIAO
     const pcm16k = reamostrar24kPara16k(pcm24k);
 
     res.setHeader("Content-Type", "application/octet-stream");
@@ -91,12 +116,11 @@ export default async function handler(req, res) {
     return res.status(200).send(pcm16k);
 
   } catch (err) {
-    console.error("Erro interno no servidor:", err.message);
-    return res.status(500).json({ erroServidor: err.message });
+    console.error("Erro Geral:", err.message);
+    return res.status(500).json({ erroGeral: err.message });
   }
 }
 
-// Reamostra áudio PCM 16-bit de 24kHz para 16kHz (proporção 3:2)
 function reamostrar24kPara16k(buf24k) {
   const totalAmostras24k = Math.floor(buf24k.length / 2);
   const totalAmostras16k = Math.floor((totalAmostras24k * 2) / 3);
