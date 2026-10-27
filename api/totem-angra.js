@@ -1,4 +1,4 @@
-// api/totem-angra.js
+// api/totem-angra.js (Mestre de RPG Acessível com Memória de Estado)
 export const config = {
   api: { bodyParser: false },
 };
@@ -6,7 +6,7 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Totem Angra Online (v3 - Com Transcricao)!",
+      status: "Mestre de RPG Audio-Acessivel Online!",
       chaveConfigurada: !!process.env.GEMINI_API_KEY,
     });
   }
@@ -17,13 +17,31 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY ausente na Vercel");
 
+    // 1. Lê a memória acumulada das rodadas anteriores enviada pelo Seeed XIAO
+    const memoriaAnterior = decodeURIComponent(req.headers["x-memoria-rpg"] || "Início da aventura. O jogador acabou de começar.");
+
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const pcmBuffer = Buffer.concat(chunks);
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
-    // 1. ETAPA 1: Gemini 2.5 Flash transcreve a pergunta e gera a resposta em JSON
+    // 2. ETAPA 1: Gemini 2.5 Flash processa a ação do jogador + memória da história
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+    const promptRPG = `
+Você é um Mestre de RPG narrativo e imersivo criado especialmente para pessoas cegas.
+Use descrições sensoriais ricas (sons do ambiente, ecos, vento, cheiros, texturas) mas mantenha cada resposta concisa (máximo de 3 a 4 frases curtas, até 45 palavras) para a narração por voz ficar dinâmica.
+Sempre termine narrando o que acontece e dando 2 opções claras ou perguntando o que o jogador faz agora.
+
+MEMÓRIA ATUAL DA AVENTURA ATÉ AQUI:
+"${memoriaAnterior}"
+
+INSTRUÇÕES DE RETORNO (JSON OBRIGATÓRIO):
+Ouça o áudio do jogador e retorne APENAS um JSON com estas 3 chaves:
+1. "transcricao": O que o jogador disse no áudio.
+2. "resposta": A continuação emocionante da história seguindo a decisão do jogador, terminando com uma pergunta de escolha (sem emojis ou asteriscos).
+3. "memoria_atualizada": Um resumo em 2 ou 3 frases curtas acumulando tudo o que é importante na história até agora (cenário atual, itens obtidos, aliados/inimigos, última decisão tomada). Se o jogador pediu "novo jogo" ou "recomeçar", reinicie a memória com uma nova aventura.
+`;
 
     const resTexto = await fetch(urlTexto, {
       method: "POST",
@@ -39,12 +57,7 @@ export default async function handler(req, res) {
                   data: wavBuffer.toString("base64"),
                 },
               },
-              {
-                text: `Você é o guia de voz do Totem Turístico de Angra dos Reis - RJ.
-Ouça o áudio do turista e retorne APENAS um objeto JSON com duas chaves:
-1. "transcricao": O que a pessoa falou no áudio (ou "[Silêncio/Ruído]" se não houver fala clara).
-2. "resposta": Sua resposta calorosa, direta e curta (máximo 2 frases ou 30 palavras, sem emojis).`,
-              },
+              { text: promptRPG },
             ],
           },
         ],
@@ -60,14 +73,19 @@ Ouça o áudio do turista e retorne APENAS um objeto JSON com duas chaves:
     }
 
     const jsonBruto = dataTexto.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    let dados = { transcricao: "...", resposta: "Olá! Como posso ajudar em Angra dos Reis?" };
+    let dados = {
+      transcricao: "...",
+      resposta: "Você está diante dos portões de uma antiga fortaleza. Ouça o vento uivando. Você entra em silêncio ou chama pelo guarda?",
+      memoria_atualizada: memoriaAnterior,
+    };
+
     try {
       dados = JSON.parse(jsonBruto);
     } catch (e) {
       dados.resposta = jsonBruto;
     }
 
-    // 2. ETAPA 2: Gera o áudio PCM 24kHz da resposta
+    // 3. ETAPA 2: Converte a narração da história em voz expressiva (PCM 24kHz)
     const urlTts = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
     const resTts = await fetch(urlTts, {
@@ -79,7 +97,7 @@ Ouça o áudio do turista e retorne APENAS um objeto JSON com duas chaves:
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Aoede" },
+              prebuiltVoiceConfig: { voiceName: "Charon" }, // Voz profunda de narrador de RPG (ou "Aoede" / "Puck")
             },
           },
         },
@@ -98,9 +116,10 @@ Ouça o áudio do turista e retorne APENAS um objeto JSON com duas chaves:
     const pcm24k = Buffer.from(partAudio.inlineData.data, "base64");
     const pcm16k = reamostrar24kPara16k(pcm24k);
 
-    // Envia a transcrição e a resposta nos Headers HTTP (codificados para manter os acentos)
+    // Devolve a transcrição, a narração e a MEMÓRIA ATUALIZADA para o Seeed XIAO guardar
     res.setHeader("X-Transcricao", encodeURIComponent(dados.transcricao || ""));
     res.setHeader("X-Resposta", encodeURIComponent(dados.resposta || ""));
+    res.setHeader("X-Memoria-RPG", encodeURIComponent(dados.memoria_atualizada || ""));
     res.setHeader("Content-Type", "application/octet-stream");
     res.setHeader("Content-Length", pcm16k.length);
     return res.status(200).send(pcm16k);
