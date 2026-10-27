@@ -1,72 +1,115 @@
-// api/totem-angra.js (Node.js na Vercel)
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
+// api/totem-angra.js
 export const config = {
-  api: { bodyParser: false }, // Recebe os bytes binários puros do XIAO
+  api: { bodyParser: false },
 };
 
 export default async function handler(req, res) {
+  // Se você abrir o link no navegador do Mac (GET), ele testa se a chave está configurada!
+  if (req.method === "GET") {
+    return res.status(200).json({
+      status: "Totem Angra Online!",
+      chaveConfigurada: !!process.env.GEMINI_API_KEY,
+    });
+  }
+
   if (req.method !== "POST") return res.status(405).end();
 
   try {
-    // 1. Lê os bytes PCM vindos do Seeed XIAO e monta um cabeçalho WAV em memória
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("A variavel GEMINI_API_KEY nao foi configurada na Vercel!");
+    }
+
+    // 1. Recebe o áudio PCM 16kHz enviado pelo Seeed XIAO
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const pcmBuffer = Buffer.concat(chunks);
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
-    // 2. Chama o Gemini 2.5 Flash passando o áudio do turista
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // 2. Chama o Gemini 2.5 Flash pedindo resposta DIRETO EM ÁUDIO (Voz Nativa)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: "audio/wav",
-          data: wavBuffer.toString("base64"),
+    const payload = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: "audio/wav",
+                data: wavBuffer.toString("base64"),
+              },
+            },
+            {
+              text: "Você é o guia turístico oficial de Angra dos Reis - RJ. Ouça o turista e responda em português (ou no idioma que ele falar) de forma simpática, direta e muito curta (no máximo 2 frases rápidas).",
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: "Aoede", // Voz natural da IA (pode trocar por "Puck" ou "Kore")
+            },
+          },
         },
       },
-      `Você é o guia oficial do Totem Turístico de Angra dos Reis - RJ.
-       Responda à pergunta do áudio de forma calorosa, direta e em no máximo 2 frases curtas (máximo 35 palavras).
-       Se o usuário falar em inglês ou espanhol, responda no idioma dele.`,
-    ]);
+    };
 
-    const textoResposta = result.response.text().trim();
-    console.log("Resposta gerada:", textoResposta);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-    // 3. Converte o texto em voz (TTS) já em PCM 16-bit 16000Hz Mono
-    // Usando a API REST do Google Cloud TTS (ou Gemini Audio Output)
-    const ttsRes = await fetch(
-      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          input: { text: textoResposta },
-          voice: { languageCode: "pt-BR", name: "pt-BR-Neural2-B" },
-          audioConfig: {
-            audioEncoding: "LINEAR16",
-            sampleRateHertz: 16000,
-          },
-        }),
-      }
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Erro da API Gemini:", JSON.stringify(data));
+      return res.status(500).json({ erroGemini: data });
+    }
+
+    // 3. Extrai o áudio PCM 24kHz gerado pelo Gemini
+    const partAudio = data.candidates?.[0]?.content?.parts?.find(
+      (p) => p.inlineData && p.inlineData.mimeType.startsWith("audio/")
     );
 
-    const ttsJson = await ttsRes.json();
-    const audioWavFinal = Buffer.from(ttsJson.audioContent, "base64");
+    if (!partAudio) {
+      console.error("Resposta sem audio:", JSON.stringify(data));
+      return res.status(500).json({ erro: "Gemini nao retornou audio", data });
+    }
 
-    // Remove os primeiros 44 bytes (cabeçalho WAV) para entregar só o som PCM puro ao XIAO
-    const pcmPuroResposta = audioWavFinal.subarray(44);
+    const pcm24k = Buffer.from(partAudio.inlineData.data, "base64");
+
+    // 4. Converte de 24.000 Hz para 16.000 Hz para tocar na velocidade certa no XIAO
+    const pcm16k = reamostrar24kPara16k(pcm24k);
 
     res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Length", pcmPuroResposta.length);
-    return res.status(200).send(pcmPuroResposta);
+    res.setHeader("Content-Length", pcm16k.length);
+    return res.status(200).send(pcm16k);
 
   } catch (err) {
-    console.error(err);
-    return res.status(500).end();
+    console.error("Erro interno no servidor:", err.message);
+    return res.status(500).json({ erroServidor: err.message });
   }
+}
+
+// Reamostra áudio PCM 16-bit de 24kHz para 16kHz (proporção 3:2)
+function reamostrar24kPara16k(buf24k) {
+  const totalAmostras24k = Math.floor(buf24k.length / 2);
+  const totalAmostras16k = Math.floor((totalAmostras24k * 2) / 3);
+  const buf16k = Buffer.alloc(totalAmostras16k * 2);
+
+  for (let i = 0; i < totalAmostras16k; i++) {
+    const idxOrigem = Math.floor((i * 3) / 2) * 2;
+    if (idxOrigem + 1 < buf24k.length) {
+      const amostra = buf24k.readInt16LE(idxOrigem);
+      buf16k.writeInt16LE(amostra, i * 2);
+    }
+  }
+  return buf16k;
 }
 
 function adicionarCabecalhoWav(pcm, sampleRate) {
@@ -75,12 +118,12 @@ function adicionarCabecalhoWav(pcm, sampleRate) {
   header.writeUInt32LE(36 + pcm.length, 4);
   header.write("WAVEfmt ", 8);
   header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20); // PCM
-  header.writeUInt16LE(1, 22); // Mono
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
   header.writeUInt32LE(sampleRate, 24);
   header.writeUInt32LE(sampleRate * 2, 28);
   header.writeUInt16LE(2, 32);
-  header.writeUInt16LE(16, 34); // 16-bit
+  header.writeUInt16LE(16, 34);
   header.write("data", 36);
   header.writeUInt32LE(pcm.length, 40);
   return Buffer.concat([header, pcm]);
