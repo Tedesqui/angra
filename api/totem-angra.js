@@ -1,13 +1,12 @@
-// api/totem-angra.js (Mestre de RPG Acessível com Áudio Suavizado e Memória de Estado)
+// api/totem-angra.js (Mestre de RPG Acessível com Boas-Vindas Automáticas e Sem Bips)
 export const config = {
   api: { bodyParser: false },
 };
 
 export default async function handler(req, res) {
-  // Teste rápido pelo navegador (GET)
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Mestre de RPG Audio-Acessivel Online (Audio HD Interpolado)!",
+      status: "Mestre de RPG Audio-Acessivel Online (Com Boas-Vindas)!",
       chaveConfigurada: !!process.env.GEMINI_API_KEY,
     });
   }
@@ -18,30 +17,56 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY ausente na Vercel");
 
-    // 1. Lê a memória acumulada das rodadas anteriores enviada pelo Seeed XIAO
+    const acaoInicial = req.headers["x-acao-inicial"] || "";
     const memoriaAnterior = decodeURIComponent(
       req.headers["x-memoria-rpg"] ||
         "Início da aventura. O jogador acabou de entrar no mundo do RPG."
     );
 
-    // 2. Recebe o áudio PCM 16kHz gravado no INMP441
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const pcmBuffer = Buffer.concat(chunks);
-
-    if (pcmBuffer.length < 1000) {
-      throw new Error(`Audio muito curto recebido: ${pcmBuffer.length} bytes`);
-    }
-
-    const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
-
-    // 3. ETAPA 1: Gemini 2.5 Flash ouve o jogador, consulta a memória e avança a história
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    let bodyGeminiTexto;
 
-    const promptRPG = `
+    // CENÁRIO A: O aparelho acabou de ligar na tomada -> Gera boas-vindas e instruções por voz!
+    if (acaoInicial === "boas_vindas") {
+      const temJogoSalvo = !memoriaAnterior.includes("Início da aventura");
+
+      const promptBoasVindas = `
+Você é um Mestre de RPG narrativo criado especialmente para pessoas cegas.
+O aparelho acabou de ser ligado. Crie uma fala de boas-vindas calorosa e clara (máximo de 4 frases curtas, até 55 palavras, sem emojis ou asteriscos) que faça o seguinte:
+1. Dê as boas-vindas ao RPG de Aventuras por Voz e explique de forma simples como jogar: diga que sempre que você terminar de narrar e fizer uma pergunta, basta a pessoa falar a decisão dela em voz alta (ou dizer "Novo jogo" se quiser começar outra história).
+2. ${
+        temJogoSalvo
+          ? `Diga que encontrou uma aventura salva (${memoriaAnterior}) e pergunte se a pessoa quer continuar de onde parou ou escolher um novo tema.`
+          : `Pergunte qual tipo de aventura a pessoa quer jogar hoje: Fantasia Medieval, Mistério ou Piratas.`
+      }
+
+Retorne APENAS um JSON com as chaves:
+- "transcricao": "[Aparelho Ligado - Boas Vindas]"
+- "resposta": O texto falado de boas-vindas e instruções.
+- "memoria_atualizada": "${memoriaAnterior}"
+`;
+
+      bodyGeminiTexto = {
+        contents: [{ role: "user", parts: [{ text: promptBoasVindas }] }],
+        generationConfig: { responseMimeType: "application/json" },
+      };
+    } 
+    // CENÁRIO B: Turno normal durante o jogo -> Ouve o áudio do jogador
+    else {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const pcmBuffer = Buffer.concat(chunks);
+
+      if (pcmBuffer.length < 1000) {
+        throw new Error(`Audio muito curto recebido: ${pcmBuffer.length} bytes`);
+      }
+
+      const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
+
+      const promptRPG = `
 Você é um Mestre de RPG narrativo e imersivo criado especialmente para pessoas cegas.
 Use descrições sensoriais ricas (sons do ambiente, ecos, vento, passos, cheiros, texturas), mas mantenha cada resposta concisa (máximo de 3 a 4 frases curtas, até 45 palavras) para a narração por voz ficar dinâmica.
-Sempre termine narrando o que acontece e dando 2 opções claras ou perguntando o que o jogador faz agora.
+Sempre termine narrando o que acontece e dando 2 opções claras ou perguntando o que o jogador faz agora, para que a pessoa cega saiba exatamente a hora em que você parou de falar e que ela já pode responder.
 
 MEMÓRIA ATUAL DA AVENTURA ATÉ AQUI:
 "${memoriaAnterior}"
@@ -49,14 +74,11 @@ MEMÓRIA ATUAL DA AVENTURA ATÉ AQUI:
 INSTRUÇÕES DE RETORNO (JSON OBRIGATÓRIO):
 Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
 1. "transcricao": O que o jogador disse no áudio.
-2. "resposta": A continuação emocionante da história seguindo a decisão do jogador, terminando com uma pergunta de escolha (sem emojis, sem asteriscos e sem formatação markdown).
-3. "memoria_atualizada": Um resumo em 2 ou 3 frases curtas acumulando tudo o que é importante na história até agora (cenário atual, itens obtidos, aliados/inimigos, última decisão tomada). Se o jogador pediu "novo jogo" ou "recomeçar", reinicie a memória do zero com uma nova aventura.
+2. "resposta": A continuação emocionante da história seguindo a decisão do jogador, terminando com uma pergunta clara de escolha (sem emojis, sem asteriscos e sem markdown).
+3. "memoria_atualizada": Um resumo em 2 ou 3 frases curtas acumulando tudo o que é importante na história até agora (cenário atual, itens obtidos, aliados/inimigos, última decisão tomada). Se o jogador pediu "novo jogo" ou "recomeçar", reinicie a memória do zero com a nova aventura escolhida.
 `;
 
-    const resTexto = await fetch(urlTexto, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      bodyGeminiTexto = {
         contents: [
           {
             role: "user",
@@ -71,15 +93,19 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
             ],
           },
         ],
-        generationConfig: {
-          responseMimeType: "application/json",
-        },
-      }),
+        generationConfig: { responseMimeType: "application/json" },
+      };
+    }
+
+    // Chama o Gemini 2.5 Flash para gerar o texto da narração
+    const resTexto = await fetch(urlTexto, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyGeminiTexto),
     });
 
     const dataTexto = await resTexto.json();
     if (!resTexto.ok) {
-      console.error("Erro Gemini Texto:", JSON.stringify(dataTexto));
       return res.status(500).json({ etapa: "gemini_texto", erro: dataTexto });
     }
 
@@ -87,7 +113,7 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
     let dados = {
       transcricao: "...",
       resposta:
-        "Você está diante dos portões de uma antiga fortaleza. O vento sopra forte nas pedras úmidas. Você prefere entrar em silêncio ou chamar pelo guarda?",
+        "Bem-vindo ao RPG por voz. Sempre que eu terminar de falar e fizer uma pergunta, basta dizer sua escolha em voz alta. Qual aventura você quer jogar hoje: fantasia medieval ou mistério?",
       memoria_atualizada: memoriaAnterior,
     };
 
@@ -97,7 +123,7 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
       dados.resposta = jsonBruto;
     }
 
-    // 4. ETAPA 2: Converte a narração da história em voz expressiva (PCM 24kHz)
+    // Converte a narração da história em voz expressiva (PCM 24kHz)
     const urlTts = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
     const resTts = await fetch(urlTts, {
@@ -109,7 +135,6 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              // Voz profunda de narrador ("Charon") — ou teste "Aoede", "Kore", "Puck"
               prebuiltVoiceConfig: { voiceName: "Charon" },
             },
           },
@@ -119,7 +144,6 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
 
     const dataTts = await resTts.json();
     if (!resTts.ok) {
-      console.error("Erro Gemini TTS:", JSON.stringify(dataTts));
       return res.status(500).json({ etapa: "gemini_tts", erro: dataTts });
     }
 
@@ -132,11 +156,8 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
     }
 
     const pcm24k = Buffer.from(partAudio.inlineData.data, "base64");
-
-    // 5. Reamostra de 24kHz para 16kHz com Interpolação Linear + Filtro Anti-Aliasing
     const pcm16k = reamostrar24kPara16k(pcm24k);
 
-    // 6. Envia cabeçalhos com Transcrição, Resposta e Memória + Corpo Binário Alinhado
     res.setHeader("X-Transcricao", encodeURIComponent(dados.transcricao || ""));
     res.setHeader("X-Resposta", encodeURIComponent(dados.resposta || ""));
     res.setHeader("X-Memoria-RPG", encodeURIComponent(dados.memoria_atualizada || ""));
@@ -145,14 +166,11 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
     return res.status(200).send(pcm16k);
 
   } catch (err) {
-    console.error("Erro Geral:", err.message);
     return res.status(500).json({ erroGeral: err.message });
   }
 }
 
-// Reamostragem de 24.000 Hz para 16.000 Hz com Interpolação Linear (Elimina serrilhado e chiado!)
 function reamostrar24kPara16k(buf24k) {
-  // Garante tamanho estritamente par (16-bit alinhado)
   const tamanhoPar = buf24k.length - (buf24k.length % 2);
   const totalAmostras24k = Math.floor(tamanhoPar / 2);
   const totalAmostras16k = Math.floor((totalAmostras24k * 2) / 3);
@@ -169,10 +187,7 @@ function reamostrar24kPara16k(buf24k) {
     const s1 = buf24k.readInt16LE(byteIdx1);
     const s2 = buf24k.readInt16LE(byteIdx2);
 
-    // Média interpolada entre as amostras vizinhas
     let amostraSuave = Math.round(s1 + (s2 - s1) * fracao);
-
-    // Proteção de limite 16-bit
     if (amostraSuave > 32767) amostraSuave = 32767;
     if (amostraSuave < -32768) amostraSuave = -32768;
 
