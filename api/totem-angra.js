@@ -1,4 +1,4 @@
-// api/totem-angra.js (Mestre de RPG Acessível com Boas-Vindas e Escolha de Aventura)
+// api/totem-angra.js (Guia Completo: Cachoeiras, Trilhas, Embarques, Gastronomia, Multilíngue e Filtro Anti-Ruído)
 export const config = {
   api: { bodyParser: false },
 };
@@ -6,7 +6,7 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Mestre de RPG Audio-Acessivel Online (Com Boas-Vindas e Save)!",
+      status: "Guia Turistico Completo de Angra dos Reis Online!",
       chaveConfigurada: !!process.env.GEMINI_API_KEY,
     });
   }
@@ -19,31 +19,26 @@ export default async function handler(req, res) {
 
     const acaoInicial = req.headers["x-acao-inicial"] || "";
     const memoriaAnterior = decodeURIComponent(
-      req.headers["x-memoria-rpg"] ||
-        "Início da aventura. O jogador acabou de entrar no mundo do RPG."
+      req.headers["x-memoria-turismo"] ||
+        "Sessão recém-iniciada. Nenhum visitante identificado ainda."
     );
 
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     let bodyGeminiTexto;
 
-    // CENÁRIO A: Aparelho acabou de ligar -> Mestre dá boas-vindas e pergunta sobre o save
+    // CENÁRIO A: Boas-vindas ao ligar o aparelho
     if (acaoInicial === "boas_vindas") {
-      const temJogoSalvo = !memoriaAnterior.includes("Início da aventura");
-
       const promptBoasVindas = `
-Você é um Mestre de RPG narrativo criado especialmente para pessoas cegas.
-O aparelho acabou de ser ligado. Crie uma fala de boas-vindas calorosa e clara (máximo de 4 frases curtas, até 55 palavras, sem emojis, asteriscos ou formatação markdown):
-1. Dê as boas-vindas ao RPG de Aventuras por Voz.
-2. ${
-        temJogoSalvo
-          ? `Diga que encontrou uma aventura salva e pergunte com clareza: "Você quer continuar de onde parou ou quer começar uma nova aventura?"`
-          : `Pergunte qual tipo de aventura a pessoa quer jogar hoje: Fantasia Medieval, Mistério ou Ficção Científica.`
-      }
+Você é o Guia Turístico Virtual de Angra dos Reis (RJ), muito simpático, acolhedor e prestativo.
+O totem acabou de ficar pronto. Crie uma fala curta e calorosa em Português (máximo de 2 a 3 frases curtas, até 35 palavras, sem emojis e sem asteriscos):
+1. Dê as boas-vindas a Angra dos Reis (mencionando que você fala português, inglês ou espanhol).
+2. Pergunte o nome da pessoa e se ela quer dicas de ilhas, cachoeiras, passeios de barco ou gastronomia hoje.
 
 Retorne APENAS um JSON com as chaves:
-- "transcricao": "[Aparelho Ligado - Boas Vindas]"
-- "resposta": O texto falado de boas-vindas e a pergunta.
-- "memoria_atualizada": "${memoriaAnterior}"
+- "ruido_ignorado": false
+- "transcricao": "[Boas-Vindas do Guia]"
+- "resposta": O texto falado de boas-vindas perguntando o nome.
+- "memoria_atualizada": "Sessão iniciada. Aguardando o visitante dizer o nome e o idioma."
 `;
 
       bodyGeminiTexto = {
@@ -51,31 +46,65 @@ Retorne APENAS um JSON com as chaves:
         generationConfig: { responseMimeType: "application/json" },
       };
     } 
-    // CENÁRIO B: Turno normal do jogo -> Processa a fala do jogador
+    // CENÁRIO B: Áudio captado pelo microfone
     else {
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
       const pcmBuffer = Buffer.concat(chunks);
 
       if (pcmBuffer.length < 1000) {
-        throw new Error(`Audio muito curto recebido: ${pcmBuffer.length} bytes`);
+        res.setHeader("X-Ignorado", "1");
+        res.setHeader("Content-Length", "0");
+        return res.status(200).end();
       }
 
       const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
-      const promptRPG = `
-Você é um Mestre de RPG narrativo e imersivo criado especialmente para pessoas cegas.
-Use descrições sensoriais ricas (sons do ambiente, ecos, vento, passos, cheiros, texturas), mas mantenha cada resposta concisa (máximo de 3 a 4 frases curtas, até 45 palavras) para a narração por voz ficar dinâmica.
-Sempre termine narrando o que acontece e fazendo uma pergunta clara de escolha ou de rumo (sem emojis, sem asteriscos e sem markdown).
+      const promptTurismo = `
+Você é um Guia Turístico Virtual especialista em Angra dos Reis (RJ).
 
-MEMÓRIA ATUAL DA AVENTURA ATÉ AQUI:
+BASE DE CONHECIMENTO COMPLETA DE ANGRA DOS REIS:
+1. CACHOEIRAS E TRILHAS DO CONTINENTE:
+   - Bracuhy: Cachoeira do Bracuhy / Usina (trilha pela Mata Atlântica seguindo a tubulação histórica, poços cristalinos no Rio Bracuhy e ruínas).
+   - Ariró: Cachoeira do Ariró e Poço do Amor (águas doces cercadas por mata nativa, próximo à aldeia indígena Guarani Sapukai).
+   - Banqueta e Sertãozinho: Poços naturais de águas super cristalinas que descem da serra.
+   - Serra D'Água (RJ-155): Cachoeira da Caputera e quedas d'água da Serra do Mar.
+   - Mambucaba / Serra da Bocaina: Rio Mambucaba (boia-cross, rafting e poços), Cachoeira de Santo Isidro e a histórica Trilha do Ouro.
+2. TRILHAS E CACHOEIRAS DA ILHA GRANDE:
+   - Cachoeira da Feiticeira (queda de 15m), Circuito do Abraão (Ruínas do Lazareto, Aqueduto Imperial e Poção), Pico do Papagaio (Trilha T13 - 982m de altitude) e Trilha T10 (Abraão até Lopes Mendes passando por Palmas e Mangues).
+3. PRAIAS E ILHAS FAMOSAS:
+   - Ilha de Cataguás, Ilha da Gipóia (Praia do Dentista, Flechas, Piedade), Ilhas Botinas, Lagoa Azul, Lagoa Verde e praias da Estrada do Contorno (Grande, Bonfim, Gordas, Figueira, Laboratório).
+4. EMBARQUES, BARCAS E PASSEIOS NÁUTICOS:
+   - Cais de Santa Luzia (Centro de Angra): Principal ponto turístico de embarque para escunas, lanchas compartilhadas (Ilhas Paradisíacas / Ilha Grande), taxi-boat e catamarãs rápidos para a Vila do Abraão.
+   - Cais da Lapa (Centro): Ponto de partida da Barca Oficial da CCR Barcas para a Vila do Abraão (viagem de aprox. 1h20, opção mais econômica) e embarcações locais.
+   - Outros pontos de embarque: Marina Verolme, Marina Piratas (ao lado do Shopping Piratas) e Porto Bracuhy para aluguel de lanchas privativas; além de Conceição de Jacareí (distrito de Mangaratiba vizinho a Angra, com travessia rápida de 15 a 20 min para o Abraão).
+5. GASTRONOMIA CAIÇARA E ONDE COMER:
+   - Prato Típico Oficial: "Peixe com Banana" (ou Azul Marinho, feito com peixe fresco, banana-da-terra ou caturra meia-verde e pirão no caldo), além de caldeiradas de frutos do mar, camarão na moranga, ostras e vieiras frescas da baía.
+   - Principais Polos Gastronômicos: Vila do Abraão (Ilha Grande), Praia do Bonfim e Praia Grande (Estrada do Contorno), Canto do Saco e Praia das Flechas (Ilha da Gipóia, com restaurantes pé na areia e bares flutuantes na Praia do Dentista), Vila Histórica de Mambucaba e Porto Bracuhy.
+
+MEMÓRIA ATUAL DA CONVERSA E DAS VOZES DOS VISITANTES:
 "${memoriaAnterior}"
 
-INSTRUÇÕES DE RETORNO (JSON OBRIGATÓRIO):
-Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
-1. "transcricao": O que o jogador disse no áudio.
-2. "resposta": A continuação da história seguindo a decisão do jogador, terminando com uma pergunta de escolha. Se o jogador respondeu que quer "nova aventura" ou "recomeçar", limpe a história e comece um tema novo.
-3. "memoria_atualizada": O resumo atualizado da história (cenário atual, itens, última decisão). Se o jogador pediu nova aventura, reinicie a memória do zero.
+REGRAS DE OURO (FILTRO DE RUÍDO, IDIOMA, TIMBRE DE VOZ E CONTEXTO):
+1. FILTRO DE RUÍDO E VENTO (ECONOMIA DE API):
+   - Se o áudio contiver APENAS ruído ambiente, chiado, vento, batida, tosse, cachorro latindo, televisão ao fundo ou conversa distante incompreensível SEM nenhuma palavra clara dirigida ao guia, defina "ruido_ignorado": true, "transcricao": "[Ruido Ignorado]", "resposta": "" e mantenha a "memoria_atualizada" igual à anterior.
+   - Se houver fala humana real, defina "ruido_ignorado": false.
+2. DETECÇÃO AUTOMÁTICA DE IDIOMA:
+   - Identifique o idioma falado no áudio (Português, Inglês, Espanhol, Francês, etc.) e responda INTEIRAMENTE no mesmo idioma do visitante.
+3. DIFERENCIAÇÃO DE VOZ PELO TIMBRE:
+   - Analise acusticamente a voz (masculina/feminina, grave/aguda, sotaque).
+   - Se a memória registra uma pessoa (ex: "João" - voz masculina), mas o áudio atual tem uma VOZ DIFERENTE (ex: voz feminina ou outro homem), NÃO chame essa nova pessoa de João! Responda à dúvida dela no idioma dela e pergunte gentilmente como ela se chama.
+   - Se for a mesma voz já identificada na memória, chame a pessoa pelo nome naturalmente.
+   - Se ainda não souber o nome de quem falou, responda à dúvida turística primeiro e pergunte o nome no final.
+4. COMPLEMENTO DE CONTEXTO E CONCISÃO:
+   - Use a memória para ligar perguntas seguidas (ex: "e como chego lá?", "onde comer perto daí?").
+   - Responda em no máximo 3 frases curtas e diretas (até 45 palavras), texto limpo para voz (sem asteriscos, sem markdown e sem emojis).
+
+Retorne APENAS um objeto JSON com estas 4 chaves:
+1. "ruido_ignorado": booleano (true se for apenas barulho/silêncio sem fala; false se houver voz).
+2. "transcricao": O que a pessoa disse, precedido por idioma e perfil vocal (ex: "[PT - Voz Feminina] Onde pego o barco para a Ilha Grande?").
+3. "resposta": Sua resposta falada no mesmo idioma do visitante (ou vazio "" se ruido_ignorado for true).
+4. "memoria_atualizada": Resumo curto com: (a) Perfil vocal, idioma e nome de cada visitante, e (b) Lugares/assuntos já conversados.
 `;
 
       bodyGeminiTexto = {
@@ -89,7 +118,7 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
                   data: wavBuffer.toString("base64"),
                 },
               },
-              { text: promptRPG },
+              { text: promptTurismo },
             ],
           },
         ],
@@ -110,8 +139,9 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
 
     const jsonBruto = dataTexto.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
     let dados = {
+      ruido_ignorado: false,
       transcricao: "...",
-      resposta: "Bem-vindo ao RPG por voz. Você quer continuar de onde parou ou iniciar uma nova aventura?",
+      resposta: "Olá! Bem-vindo a Angra dos Reis. Como você se chama e o que gostaria de conhecer hoje?",
       memoria_atualizada: memoriaAnterior,
     };
 
@@ -119,6 +149,15 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
       dados = JSON.parse(jsonBruto);
     } catch (e) {
       dados.resposta = jsonBruto;
+    }
+
+    // SE FOR APENAS RUÍDO/VENTO: Cancela a geração de voz (TTS) para economizar API e tempo!
+    if (dados.ruido_ignorado === true || !dados.resposta || dados.resposta.trim() === "") {
+      res.setHeader("X-Ignorado", "1");
+      res.setHeader("X-Transcricao", encodeURIComponent(dados.transcricao || "[Ruido Ignorado]"));
+      res.setHeader("X-Memoria-Turismo", encodeURIComponent(memoriaAnterior));
+      res.setHeader("Content-Length", "0");
+      return res.status(200).end();
     }
 
     const urlTts = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
@@ -132,7 +171,7 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Charon" }, // Voz imponente de narrador
+              prebuiltVoiceConfig: { voiceName: "Aoede" },
             },
           },
         },
@@ -155,9 +194,10 @@ Ouça o áudio do jogador e retorne APENAS um objeto JSON com estas 3 chaves:
     const pcm24k = Buffer.from(partAudio.inlineData.data, "base64");
     const pcm16k = reamostrar24kPara16k(pcm24k);
 
+    res.setHeader("X-Ignorado", "0");
     res.setHeader("X-Transcricao", encodeURIComponent(dados.transcricao || ""));
     res.setHeader("X-Resposta", encodeURIComponent(dados.resposta || ""));
-    res.setHeader("X-Memoria-RPG", encodeURIComponent(dados.memoria_atualizada || ""));
+    res.setHeader("X-Memoria-Turismo", encodeURIComponent(dados.memoria_atualizada || ""));
     res.setHeader("Content-Type", "application/octet-stream");
     res.setHeader("Content-Length", pcm16k.length);
     return res.status(200).send(pcm16k);
