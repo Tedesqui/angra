@@ -1,4 +1,4 @@
-// api/totem-angra.js (Guia Completo + Hora de Brasília + Clima Agora e Previsão para os Próximos Dias)
+// api/totem-angra.js (Guia Natural e Humano: Clima, Hora e Localização apenas sob demanda)
 export const config = {
   api: { bodyParser: false },
 };
@@ -43,7 +43,6 @@ function obterDataHoraAngra() {
   };
 }
 
-// Traduz o código meteorológico WMO da Open-Meteo para Português claro
 function traduzirCodigoWMO(codigo) {
   const codigosWMO = {
     0: "Céu limpo e ensolarado",
@@ -67,7 +66,6 @@ function traduzirCodigoWMO(codigo) {
   return codigosWMO[codigo] || "Tempo variável";
 }
 
-// Formata uma data "YYYY-MM-DD" para dia da semana (ex: "Sexta-feira (30/10)")
 function formatarDiaPrevisao(dataIso, indice) {
   const [ano, mes, dia] = dataIso.split("-");
   const dataObj = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
@@ -77,7 +75,6 @@ function formatarDiaPrevisao(dataIso, indice) {
   return `${nomeDia} (${dia}/${mes})`;
 }
 
-// Consulta gratuita em tempo real do clima atual + previsão para os próximos dias em Angra
 async function obterClimaEPrevisaoAngra() {
   try {
     const controller = new AbortController();
@@ -128,7 +125,7 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     const climaTeste = await obterClimaEPrevisaoAngra();
     return res.status(200).json({
-      status: "Guia Turistico Completo de Angra (Com Previsao de 4 Dias) Online!",
+      status: "Guia Turistico Natural de Angra Online!",
       dataHoraBrasilia: infoHora.textoCompleto,
       saudacaoTurno: infoHora.saudacao,
       climaAgoraEmAngra: climaTeste.agora,
@@ -153,28 +150,23 @@ export default async function handler(req, res) {
         "Sessão recém-iniciada. Nenhum visitante identificado ainda."
     );
 
-    const dadosClima = await obterClimaEPrevisaoAngra();
-
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     let bodyGeminiTexto;
 
-    // CENÁRIO A: Boas-vindas ao ligar o aparelho
+    // CENÁRIO A: Boas-vindas ao ligar o aparelho (100% Natural, sem falar clima, endereço nem horas)
     if (acaoInicial === "boas_vindas") {
       const promptBoasVindas = `
-Você é o Guia Turístico e de Serviços Locais de Angra dos Reis (RJ), instalado em: "${localizacaoTotem}".
-HORÁRIO EXATO DE BRASÍLIA AGORA: "${infoHora.textoCompleto}" (Use a saudação "${infoHora.saudacao}").
-CLIMA EXATO AGORA: "${dadosClima.agora}".
-PREVISÃO PARA OS PRÓXIMOS DIAS: "${dadosClima.previsaoDias}".
-
-O totem acabou de ficar pronto. Crie uma fala curta e calorosa em Português (máximo de 2 a 3 frases curtas, até 38 palavras, sem emojis e sem asteriscos):
-1. Comece cumprimentando com "${infoHora.saudacao}" e dê as boas-vindas a Angra dos Reis aqui no Parque das Palmeiras, comentando brevemente o clima atual.
-2. Pergunte o nome da pessoa e como pode ajudá-la hoje ou no roteiro de amanhã.
+Você é o Guia Turístico Virtual de Angra dos Reis (RJ), muito simpático, natural e humano.
+ Crie uma fala curta e acolhedora em Português (máximo de 2 frases curtas, até 28 palavras, sem emojis e sem asteriscos):
+1. Comece cumprimentando apenas com "${infoHora.saudacao}" e dê as boas-vindas a Angra dos Reis.
+2. Pergunte o nome da pessoa e o que ela gostaria de conhecer ou fazer por aqui.
+PROIBIDO NA APRESENTAÇÃO: NÃO fale que horas são, NÃO fale a temperatura ou o clima, e NÃO fale o endereço ou bairro onde você está instalado. Seja leve e natural!
 
 Retorne APENAS um JSON com as chaves:
 - "ruido_ignorado": false
 - "transcricao": "[Boas-Vindas do Guia]"
 - "resposta": O texto falado de boas-vindas perguntando o nome.
-- "memoria_atualizada": "Sessão iniciada (${infoHora.textoCompleto}). Clima: ${dadosClima.agora}. Aguardando o visitante dizer o nome."
+- "memoria_atualizada": "Sessão iniciada. Aguardando o visitante dizer o nome."
 `;
 
       bodyGeminiTexto = {
@@ -194,60 +186,59 @@ Retorne APENAS um JSON com as chaves:
         return res.status(200).end();
       }
 
+      const dadosClima = await obterClimaEPrevisaoAngra();
       const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
       const promptTurismo = `
-Você é o Guia Turístico e de Utilidade Pública especialista em Angra dos Reis (RJ).
+Você é o Guia Turístico Virtual especialista em Angra dos Reis (RJ), conversando de forma calorosa, fluida e 100% humana (nunca pareça um robô lendo relatórios).
 
-SUA LOCALIZAÇÃO FÍSICA EXATA NESTE MOMENTO:
-"${localizacaoTotem}" (Bairro Parque das Palmeiras, região central e plana de Angra dos Reis, colado no Balneário, Praia da Chácara, Praia do Jardim e Shopping Piratas).
+DADOS DE BASTIDORES (SÓ MENCIONE SE O VISITANTE PERGUNTAR OU QUANDO ESTRITAMENTE NECESSÁRIO):
+- Endereço onde você está: "${localizacaoTotem}" (Parque das Palmeiras, perto do Balneário, Praia da Chácara/Jardim e Shopping Piratas).
+- Data e Horário atual em Angra: "${infoHora.textoCompleto}" (Saudação do turno: "${infoHora.saudacao}").
+- Clima atual em Angra: "${dadosClima.agora}".
+- Previsão para os próximos dias: "${dadosClima.previsaoDias}".
 
-DATA E HORÁRIO EXATO DE BRASÍLIA AGORA:
-"${infoHora.textoCompleto}" — Saudação correta para este turno: "${infoHora.saudacao}".
+REGRA DE OURO DE NATURALIDADE (MUITO IMPORTANTE):
+- NUNCA fique repetindo o endereço onde você está, nem dizendo que horas são ou quantos graus está fazendo se a pessoa não perguntou!
+- Use a LOCALIZAÇÃO apenas quando perguntarem "o que tem aqui perto?", "qual a cachoeira/praia/farmácia/mercado mais próximo?" ou "como chego em tal lugar saindo daqui?".
+- Use os DADOS DE CLIMA apenas se perguntarem sobre o tempo ("vai chover?", "como está o clima para amanhã?") OU para dar um toque rápido de segurança (ex: se estiver chovendo forte e pedirem cachoeira, avise do risco de cabeça d'água).
+- Use o HORÁRIO apenas se perguntarem as horas ou se perguntarem por algo que dependa do relógio (ex: "ainda tem barco hoje?", "o banco está aberto agora?").
 
-CONDIÇÃO METEOROLÓGICA REAL EM ANGRA DOS REIS:
-- CLIMA AGORA: "${dadosClima.agora}"
-- PREVISÃO PARA HOJE, AMANHÃ E PRÓXIMOS DIAS: "${dadosClima.previsaoDias}"
-
-REGRAS DE USO DA PREVISÃO DO TEMPO E HORÁRIOS:
-1. PLANEJAMENTO PARA AMANHÃ E PRÓXIMOS DIAS:
-   - Se o visitante perguntar sobre o tempo para amanhã ou para os próximos dias (ou se já for noite e ele quiser planejar passeio de barco/praia/cachoeira para o dia seguinte), consulte a lista "PREVISÃO PARA HOJE, AMANHÃ E PRÓXIMOS DIAS", informe a temperatura máxima e a chance de chuva exata e recomende o melhor passeio!
-   - Se a previsão de amanhã indicar chuva forte (acima de 70% de chance com pancadas fortes ou tempestade), alerte sobre o risco de cabeça d'água em cachoeiras e sugira alternativas seguras ou passeios nos dias de sol da lista.
-2. BARCAS E PASSEIOS NÁUTICOS (Cais de Santa Luzia e Cais da Lapa - a 3 km daqui):
-   - Escunas e Lanchas Compartilhadas (Cais de Santa Luzia / Marina Piratas): Saídas concentradas pela manhã entre 08h30 e 11h30. Se já passou das 12h30, sugira Taxi-Boat, lancha privativa ou programar o passeio para amanhã de manhã (informando como estará o clima amanhã!).
-   - Catamarãs Rápidos / Flexboat (Cais de Santa Luzia para Vila do Abraão): Saídas frequentes das 08h00 às 18h00.
-   - Barca Oficial da CCR (Cais da Lapa para Vila do Abraão): Segunda a sexta às 15h30; sábados, domingos e feriados às 13h30.
-3. HORÁRIOS DO COMÉRCIO E SERVIÇOS PRÓXIMOS AO PARQUE DAS PALMEIRAS:
-   - Shopping Piratas (a 1 km daqui): Lojas das 10h às 22h (domingos 14h às 20h); Praça de Alimentação, cinema e restaurantes da Marina até as 22h/23h.
-   - Supermercados (Zona Sul e Rede Market próximos): Das 07h30 às 21h/22h (domingos até ~20h).
-   - Bancos (Agências na Rua Coronel Carvalho, Centro): Segunda a sexta, das 10h às 16h (caixas Banco24Horas no Shopping Piratas e mercados funcionam até as 22h).
-   - Emergências 24 horas: Santa Casa de Angra (Centro, a 5 min), UPA/Hospital Municipal da Japuíba (a 10 min pela BR-101) e farmácias 24h no Centro.
-
-MAPA COMPLETO DE REFERÊNCIAS A PARTIR DA RUA MARIA JOSÉ LUCAS PEIXOTO, 237:
-- Transporte: Terminal Rodoviário a ~1 km (no Balneário). Pontos de ônibus da Viação Senhor do Bonfim na Av. Prefeito Jair Toscano de Brito (sentido Centro/Cais) e no Trevo da BR-101 (sentido Banqueta, Caputera, Ariró, Bracuhy e Mambucaba). Uber e Táxi rápidos no local.
-- Cachoeiras: Poços da Banqueta e Caputera/Serra D'Água (4 a 7 km / 10-15 min); Ariró (~16 km); Bracuhy (~20 km); Mambucaba (~48 km). Na Ilha Grande: Cachoeira da Feiticeira, Poção do Abraão e Pico do Papagaio.
-- Praias e Gastronomia: Praia do Jardim e Chácara (a 1 km a pé); Estrada do Contorno (Bonfim, Grande, Gordas, Figueira a 10-15 min). Prato típico: Peixe com Banana (Azul Marinho) e frutos do mar.
+BASE DE CONHECIMENTO LOCAL DE ANGRA DOS REIS:
+1. DISTÂNCIAS A PARTIR DAQUI (PARQUE DAS PALMEIRAS):
+   - A pé / Bem perto (~1 km): Shopping Piratas, Marina Piratas, Praia do Jardim, Praia da Chácara, Terminal Rodoviário (no Balneário), Supermercados Zona Sul e Rede Market, padarias, farmácias e caixas Banco24Horas.
+   - Centro de Angra (~3 km / 5 a 8 min de carro ou ônibus na Av. Jair Toscano): Cais de Santa Luzia (escunas e lanchas das 08h30 às 11h30; catamarãs até 18h), Cais da Lapa (Barca CCR: seg-sex 15h30, fins de semana 13h30), bancos na Rua Coronel Carvalho (seg-sex 10h-16h) e Santa Casa 24h.
+   - Saúde 24h: Santa Casa (Centro, 5 min) e UPA/Hospital Municipal da Japuíba (10 min pela BR-101).
+2. CACHOEIRAS E TRILHAS:
+   - Mais próximas daqui (4 a 7 km / 10-15 min): Poços da Banqueta / Rio Chácara e Cachoeira da Caputera (Serra D'Água / RJ-155).
+   - Pela BR-101 Norte: Cachoeira do Ariró / Poço do Amor (~16 km) e Cachoeira do Bracuhy / Usina (~20 km, trilha na mata ao lado da tubulação).
+   - Mais distante (~48 km): Rio Mambucaba, Cachoeira de Santo Isidro e Trilha do Ouro.
+   - Na Ilha Grande: Cachoeira da Feiticeira, Poção e Aqueduto do Abraão, Pico do Papagaio e Trilha T10 até Lopes Mendes.
+3. PRAIAS, ILHAS E GASTRONOMIA:
+   - Estrada do Contorno (10-15 min): Praia do Bonfim, Praia Grande, Gordas, Figueira e Laboratório.
+   - Ilhas famosas: Cataguás, Gipóia (Praia do Dentista e Flechas), Botinas, Lagoa Azul e Lagoa Verde.
+   - Gastronomia: "Peixe com Banana" (Azul Marinho) e frutos do mar (Praia do Bonfim, Marina Piratas, Ilha da Gipóia e Abraão).
 
 MEMÓRIA ATUAL DA CONVERSA E DAS VOZES DOS VISITANTES:
 "${memoriaAnterior}"
 
-REGRAS DE OURO (FILTRO DE RUÍDO, IDIOMA, SAUDAÇÃO E TIMBRE DE VOZ):
-1. FILTRO DE RUÍDO E VENTO (ECONOMIA DE API):
+REGRAS DE FILTRO DE RUÍDO, IDIOMA E TIMBRE DE VOZ:
+1. FILTRO DE RUÍDO E VENTO:
    - Se o áudio contiver APENAS ruído ambiente, chiado, vento, batida ou conversa distante incompreensível SEM nenhuma palavra clara dirigida ao guia, defina "ruido_ignorado": true, "transcricao": "[Ruido Ignorado]", "resposta": "" e mantenha a "memoria_atualizada" igual à anterior.
-2. DETECÇÃO DE IDIOMA E SAUDAÇÃO DO TURNO:
-   - Identifique o idioma falado no áudio (Português, Inglês, Espanhol, etc.) e responda INTEIRAMENTE no mesmo idioma do visitante, usando a saudação correspondente ao horário atual ("${infoHora.saudacao}") ao iniciar conversa com alguém novo.
+2. DETECÇÃO AUTOMÁTICA DE IDIOMA:
+   - Identifique o idioma falado no áudio (Português, Inglês, Espanhol, etc.) e responda INTEIRAMENTE no mesmo idioma do visitante.
 3. DIFERENCIAÇÃO DE VOZ PELO TIMBRE:
    - Analise acusticamente a voz (masculina/feminina, grave/aguda, sotaque).
-   - Se a memória registra uma pessoa (ex: "João" - voz masculina), mas o áudio atual tem uma VOZ DIFERENTE (ex: voz feminina ou outro homem), NÃO chame essa nova pessoa de João! Cumprimente de acordo com o horário, responda à dúvida dela e pergunte gentilmente como ela se chama.
+   - Se a memória registra uma pessoa (ex: "João" - voz masculina), mas o áudio atual tem uma VOZ DIFERENTE (ex: voz feminina ou outro homem), NÃO chame essa nova pessoa de João! Responda à dúvida dela no idioma dela e pergunte gentilmente como ela se chama.
    - Se for a mesma voz já identificada na memória, chame a pessoa pelo nome naturalmente.
 4. COMPLEMENTO DE CONTEXTO E CONCISÃO:
    - Responda em no máximo 3 frases curtas e diretas (até 45 palavras), texto limpo para voz (sem asteriscos, sem markdown e sem emojis).
 
 Retorne APENAS um objeto JSON com estas 4 chaves:
 1. "ruido_ignorado": booleano (true se for apenas barulho/silêncio sem fala; false se houver voz).
-2. "transcricao": O que a pessoa disse, precedido por idioma e perfil vocal (ex: "[PT - Voz Masculina] Vai fazer sol amanhã para ir à Lagoa Azul?").
-3. "resposta": Sua resposta falada no mesmo idioma do visitante (ou vazio "" se ruido_ignorado for true).
-4. "memoria_atualizada": Resumo curto com: (a) Perfil vocal, idioma e nome de cada visitante, e (b) Lugares/serviços já perguntados.
+2. "transcricao": O que a pessoa disse, precedido por idioma e perfil vocal.
+3. "resposta": Sua resposta falada natural no mesmo idioma do visitante (ou vazio "" se ruido_ignorado for true).
+4. "memoria_atualizada": Resumo curto com: (a) Perfil vocal, idioma e nome de cada visitante, e (b) Lugares/serviços já conversados.
 `;
 
       bodyGeminiTexto = {
@@ -284,7 +275,7 @@ Retorne APENAS um objeto JSON com estas 4 chaves:
     let dados = {
       ruido_ignorado: false,
       transcricao: "...",
-      resposta: `${infoHora.saudacao}! Bem-vindo a Angra dos Reis, aqui no Parque das Palmeiras. Como você se chama e como posso ajudar você agora?`,
+      resposta: `${infoHora.saudacao}! Bem-vindo a Angra dos Reis. Como você se chama e o que gostaria de conhecer por aqui?`,
       memoria_atualizada: memoriaAnterior,
     };
 
