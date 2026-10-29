@@ -1,12 +1,55 @@
-// api/totem-angra.js (Guia Completo: Cachoeiras, Trilhas, Embarques, Gastronomia, Multilíngue e Filtro Anti-Ruído)
+// api/totem-angra.js (Guia Completo + Clima em Tempo Real via Open-Meteo + Segurança em Cachoeiras)
 export const config = {
   api: { bodyParser: false },
 };
 
+// Consulta gratuita e em tempo real do clima em Angra dos Reis (Parque das Palmeiras)
+async function obterClimaAtualAngra() {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500); // Timeout rápido de 2.5s
+
+    const url =
+      "https://api.open-meteo.com/v1/forecast?latitude=-22.9994&longitude=-44.3039&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&timezone=America%2FSao_Paulo";
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!res.ok) return "Clima indisponível no momento.";
+    const data = await res.json();
+    const c = data.current;
+    if (!c) return "Clima indisponível no momento.";
+
+    const codigosWMO = {
+      0: "Céu limpo e ensolarado",
+      1: "Predominantemente aberto",
+      2: "Parcialmente nublado",
+      3: "Céu encoberto / nublado",
+      45: "Nevoeiro",
+      51: "Garoa leve",
+      53: "Garoa moderada",
+      55: "Garoa intensa",
+      61: "Chuva fraca",
+      63: "Chuva moderada",
+      65: "Chuva forte",
+      80: "Pancadas de chuva leves",
+      81: "Pancadas de chuva moderadas",
+      82: "Pancadas de chuva fortes",
+      95: "Tempestade com trovoadas",
+    };
+
+    const condicao = codigosWMO[c.weather_code] || "Tempo variável";
+    return `${condicao}, Temperatura atual: ${Math.round(c.temperature_2m)}°C (Sensação térmica: ${Math.round(c.apparent_temperature)}°C), Chuva agora: ${c.precipitation} mm, Vento: ${Math.round(c.wind_speed_10m)} km/h.`;
+  } catch (e) {
+    return "Clima em tempo real indisponível.";
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method === "GET") {
+    const climaTeste = await obterClimaAtualAngra();
     return res.status(200).json({
-      status: "Guia Turistico Completo de Angra dos Reis Online!",
+      status: "Guia Turistico, Comercial e Climatico de Angra dos Reis Online!",
+      climaAtualEmAngra: climaTeste,
       chaveConfigurada: !!process.env.GEMINI_API_KEY,
     });
   }
@@ -18,10 +61,17 @@ export default async function handler(req, res) {
     if (!apiKey) throw new Error("GEMINI_API_KEY ausente na Vercel");
 
     const acaoInicial = req.headers["x-acao-inicial"] || "";
+    const localizacaoTotem = decodeURIComponent(
+      req.headers["x-localizacao-totem"] ||
+        "Rua Maria José Lucas Peixoto, N° 237 - Parque das Palmeiras, Angra dos Reis - RJ"
+    );
     const memoriaAnterior = decodeURIComponent(
       req.headers["x-memoria-turismo"] ||
         "Sessão recém-iniciada. Nenhum visitante identificado ainda."
     );
+
+    // Busca o clima exato de Angra dos Reis neste instante
+    const climaAgora = await obterClimaAtualAngra();
 
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     let bodyGeminiTexto;
@@ -29,16 +79,18 @@ export default async function handler(req, res) {
     // CENÁRIO A: Boas-vindas ao ligar o aparelho
     if (acaoInicial === "boas_vindas") {
       const promptBoasVindas = `
-Você é o Guia Turístico Virtual de Angra dos Reis (RJ), muito simpático, acolhedor e prestativo.
-O totem acabou de ficar pronto. Crie uma fala curta e calorosa em Português (máximo de 2 a 3 frases curtas, até 35 palavras, sem emojis e sem asteriscos):
-1. Dê as boas-vindas a Angra dos Reis (mencionando que você fala português, inglês ou espanhol).
-2. Pergunte o nome da pessoa e se ela quer dicas de ilhas, cachoeiras, passeios de barco ou gastronomia hoje.
+Você é o Guia Turístico e de Serviços Locais de Angra dos Reis (RJ), instalado em: "${localizacaoTotem}".
+CLIMA EXATO EM ANGRA DOS REIS AGORA: "${climaAgora}".
+
+O totem acabou de ficar pronto. Crie uma fala curta e calorosa em Português (máximo de 2 a 3 frases curtas, até 38 palavras, sem emojis e sem asteriscos):
+1. Dê as boas-vindas a Angra dos Reis aqui no Parque das Palmeiras comentando brevemente a temperatura/clima atual.
+2. Pergunte o nome da pessoa e se ela quer dicas de passeios, praias, cachoeiras ou comércios aqui perto.
 
 Retorne APENAS um JSON com as chaves:
 - "ruido_ignorado": false
 - "transcricao": "[Boas-Vindas do Guia]"
 - "resposta": O texto falado de boas-vindas perguntando o nome.
-- "memoria_atualizada": "Sessão iniciada. Aguardando o visitante dizer o nome e o idioma."
+- "memoria_atualizada": "Sessão iniciada em ${localizacaoTotem}. Clima: ${climaAgora}. Aguardando o visitante dizer o nome."
 `;
 
       bodyGeminiTexto = {
@@ -61,50 +113,64 @@ Retorne APENAS um JSON com as chaves:
       const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
       const promptTurismo = `
-Você é um Guia Turístico Virtual especialista em Angra dos Reis (RJ).
+Você é o Guia Turístico e de Utilidade Pública especialista em Angra dos Reis (RJ).
 
-BASE DE CONHECIMENTO COMPLETA DE ANGRA DOS REIS:
-1. CACHOEIRAS E TRILHAS DO CONTINENTE:
-   - Bracuhy: Cachoeira do Bracuhy / Usina (trilha pela Mata Atlântica seguindo a tubulação histórica, poços cristalinos no Rio Bracuhy e ruínas).
-   - Ariró: Cachoeira do Ariró e Poço do Amor (águas doces cercadas por mata nativa, próximo à aldeia indígena Guarani Sapukai).
-   - Banqueta e Sertãozinho: Poços naturais de águas super cristalinas que descem da serra.
-   - Serra D'Água (RJ-155): Cachoeira da Caputera e quedas d'água da Serra do Mar.
-   - Mambucaba / Serra da Bocaina: Rio Mambucaba (boia-cross, rafting e poços), Cachoeira de Santo Isidro e a histórica Trilha do Ouro.
-2. TRILHAS E CACHOEIRAS DA ILHA GRANDE:
-   - Cachoeira da Feiticeira (queda de 15m), Circuito do Abraão (Ruínas do Lazareto, Aqueduto Imperial e Poção), Pico do Papagaio (Trilha T13 - 982m de altitude) e Trilha T10 (Abraão até Lopes Mendes passando por Palmas e Mangues).
-3. PRAIAS E ILHAS FAMOSAS:
-   - Ilha de Cataguás, Ilha da Gipóia (Praia do Dentista, Flechas, Piedade), Ilhas Botinas, Lagoa Azul, Lagoa Verde e praias da Estrada do Contorno (Grande, Bonfim, Gordas, Figueira, Laboratório).
-4. EMBARQUES, BARCAS E PASSEIOS NÁUTICOS:
-   - Cais de Santa Luzia (Centro de Angra): Principal ponto turístico de embarque para escunas, lanchas compartilhadas (Ilhas Paradisíacas / Ilha Grande), taxi-boat e catamarãs rápidos para a Vila do Abraão.
-   - Cais da Lapa (Centro): Ponto de partida da Barca Oficial da CCR Barcas para a Vila do Abraão (viagem de aprox. 1h20, opção mais econômica) e embarcações locais.
-   - Outros pontos de embarque: Marina Verolme, Marina Piratas (ao lado do Shopping Piratas) e Porto Bracuhy para aluguel de lanchas privativas; além de Conceição de Jacareí (distrito de Mangaratiba vizinho a Angra, com travessia rápida de 15 a 20 min para o Abraão).
-5. GASTRONOMIA CAIÇARA E ONDE COMER:
-   - Prato Típico Oficial: "Peixe com Banana" (ou Azul Marinho, feito com peixe fresco, banana-da-terra ou caturra meia-verde e pirão no caldo), além de caldeiradas de frutos do mar, camarão na moranga, ostras e vieiras frescas da baía.
-   - Principais Polos Gastronômicos: Vila do Abraão (Ilha Grande), Praia do Bonfim e Praia Grande (Estrada do Contorno), Canto do Saco e Praia das Flechas (Ilha da Gipóia, com restaurantes pé na areia e bares flutuantes na Praia do Dentista), Vila Histórica de Mambucaba e Porto Bracuhy.
+SUA LOCALIZAÇÃO FÍSICA EXATA NESTE MOMENTO:
+Você está instalado em: "${localizacaoTotem}" (Bairro Parque das Palmeiras, região central e plana de Angra dos Reis, colado no Balneário, Praia da Chácara, Praia do Jardim e Shopping Piratas).
+
+CONDIÇÃO METEOROLÓGICA REAL EM ANGRA DOS REIS AGORA:
+"${climaAgora}"
+
+COMO USAR O CLIMA NAS SUAS RECOMENDAÇÕES (MUITO IMPORTANTE):
+- Se perguntarem como está o tempo ou se vale a pena ir à praia/ilha/cachoeira hoje, informe a temperatura e a condição atual real!
+- ALERTA DE SEGURANÇA EM CACHOEIRAS: Se estiver chovendo (Chuva moderada, forte ou tempestade) e alguém pedir dica de cachoeira (Bracuhy, Caputera, Banqueta, Ariró, Mambucaba), alerte com carinho que em dias de chuva há risco de "cabeça d'água" nas quedas da Serra do Mar e recomende programas seguros como o Shopping Piratas (a 1 km daqui), restaurantes caiçaras na Praia do Bonfim/Marina Piratas ou passeio histórico no Centro.
+- Se estiver sol ou tempo firme, incentive os passeios náuticos saindo da Marina Piratas ou do Cais de Santa Luzia, praias da Estrada do Contorno e cachoeiras.
+
+MAPA COMPLETO DE COMÉRCIOS, SERVIÇOS, TRANSPORTE E TURISMO A PARTIR DA RUA MARIA JOSÉ LUCAS PEIXOTO, 237:
+1. COMÉRCIOS, MERCADOS, FARMÁCIAS E BANCOS (A PÉ / MUITO PERTO):
+   - Supermercados e Padarias: Bem próximo, na região da Chácara/Piratas e Av. Prefeito Jair Toscano de Brito, ficam o Supermercado Zona Sul, o Rede Market, padarias locais, conveniências, lanchonetes, pizzarias e restaurantes.
+   - Shopping Piratas (a ~1 km / 10 a 12 min a pé ou 3 min de carro): Lojas, cinema, supermercado, praça de alimentação vista-mar, restaurantes na Marina Piratas e Boliche (ótima opção se chover!).
+   - Farmácias e Bancos: Farmácias locais no Parque das Palmeiras/Balneário e grandes redes (Drogaria Pacheco e Raia) no Shopping Piratas e no Centro. Caixas Banco24Horas no Shopping Piratas e mercados próximos, e agências bancárias na Rua Coronel Carvalho (Centro, a 5 min).
+   - Postos de Combustível: Postos de gasolina e GNV na saída para a Praia da Chácara e no acesso à BR-101.
+2. TRANSPORTE PÚBLICO (ÔNIBUS), UBER E TÁXI SAINDO DAQUI:
+   - Uber e Táxi: Atendimento rápido na porta e ponto de táxi no Shopping Piratas e na Rodoviária.
+   - Ônibus (Viação Senhor do Bonfim) e Rodoviária: O Terminal Rodoviário de Angra fica bem perto, no Balneário/Parque das Palmeiras (~1 km daqui).
+   - Linhas para o Centro e Cais de Santa Luzia: Na Av. Prefeito Jair Toscano de Brito (Beira-Mar/Chácara), qualquer linha sentido Centro (5 a 8 min).
+   - Linhas para Cachoeiras (Banqueta, Caputera/Serra D'Água, Ariró, Bracuhy, Mambucaba): No ponto da BR-101 (Trevo da Chácara/Balneário), linhas sentido Banqueta, Japuíba, Serra D'Água, Bracuhy, Frade e Parque Mambucaba.
+3. SAÚDE E EMERGÊNCIAS PRÓXIMAS:
+   - Santa Casa de Misericórdia de Angra (Centro, a 5 min de carro) e UPA / Hospital Municipal da Japuíba (HMJ, a 8-10 min pela BR-101). SAMU 192, Bombeiros 193, Polícia 190 e Defesa Civil 199.
+4. CACHOEIRAS E TRILHAS (POR ORDEM DE PROXIMIDADE DAQUI):
+   - Mais próximas (4 a 7 km / 10 a 15 min): Poços da Banqueta / Rio Chácara e Cachoeira da Caputera (Serra D'Água / RJ-155).
+   - A 20-30 min pela BR-101 Norte: Cachoeira do Ariró / Poço do Amor (~16 km) e Cachoeira do Bracuhy / Usina (~20 km).
+   - Mais distante (~48 km): Rio Mambucaba, Cachoeira de Santo Isidro e Trilha do Ouro.
+   - Na Ilha Grande (embarque no Cais de Santa Luzia a 3 km daqui): Cachoeira da Feiticeira, Poção e Aqueduto do Abraão, Pico do Papagaio e Trilha T10 até Lopes Mendes.
+5. PRAIAS, ILHAS, EMBARQUES E GASTRONOMIA:
+   - A pé daqui: Praia do Jardim e Praia da Chácara (~1 km).
+   - Estrada do Contorno (10 a 15 min): Praia do Bonfim, Praia Grande, Gordas, Figueira e Laboratório.
+   - Embarques: Marina Piratas (a 1 km), Cais de Santa Luzia (a 3 km, escunas, lanchas e catamarãs para Abraão, Lagoa Azul, Cataguás e Praia do Dentista na Gipóia) e Cais da Lapa (Barca oficial CCR).
+   - Gastronomia: "Peixe com Banana" (Azul Marinho) e frutos do mar na Praia do Bonfim, Marina Piratas, Ilha da Gipóia e Vila do Abraão.
 
 MEMÓRIA ATUAL DA CONVERSA E DAS VOZES DOS VISITANTES:
 "${memoriaAnterior}"
 
-REGRAS DE OURO (FILTRO DE RUÍDO, IDIOMA, TIMBRE DE VOZ E CONTEXTO):
+REGRAS DE OURO (FILTRO DE RUÍDO, IDIOMA E TIMBRE DE VOZ):
 1. FILTRO DE RUÍDO E VENTO (ECONOMIA DE API):
-   - Se o áudio contiver APENAS ruído ambiente, chiado, vento, batida, tosse, cachorro latindo, televisão ao fundo ou conversa distante incompreensível SEM nenhuma palavra clara dirigida ao guia, defina "ruido_ignorado": true, "transcricao": "[Ruido Ignorado]", "resposta": "" e mantenha a "memoria_atualizada" igual à anterior.
-   - Se houver fala humana real, defina "ruido_ignorado": false.
+   - Se o áudio contiver APENAS ruído ambiente, chiado, vento, batida ou conversa distante incompreensível SEM nenhuma palavra clara dirigida ao guia, defina "ruido_ignorado": true, "transcricao": "[Ruido Ignorado]", "resposta": "" e mantenha a "memoria_atualizada" igual à anterior.
 2. DETECÇÃO AUTOMÁTICA DE IDIOMA:
    - Identifique o idioma falado no áudio (Português, Inglês, Espanhol, Francês, etc.) e responda INTEIRAMENTE no mesmo idioma do visitante.
 3. DIFERENCIAÇÃO DE VOZ PELO TIMBRE:
    - Analise acusticamente a voz (masculina/feminina, grave/aguda, sotaque).
    - Se a memória registra uma pessoa (ex: "João" - voz masculina), mas o áudio atual tem uma VOZ DIFERENTE (ex: voz feminina ou outro homem), NÃO chame essa nova pessoa de João! Responda à dúvida dela no idioma dela e pergunte gentilmente como ela se chama.
    - Se for a mesma voz já identificada na memória, chame a pessoa pelo nome naturalmente.
-   - Se ainda não souber o nome de quem falou, responda à dúvida turística primeiro e pergunte o nome no final.
+   - Se ainda não souber o nome de quem falou, responda à dúvida primeiro e pergunte o nome no final.
 4. COMPLEMENTO DE CONTEXTO E CONCISÃO:
-   - Use a memória para ligar perguntas seguidas (ex: "e como chego lá?", "onde comer perto daí?").
    - Responda em no máximo 3 frases curtas e diretas (até 45 palavras), texto limpo para voz (sem asteriscos, sem markdown e sem emojis).
 
 Retorne APENAS um objeto JSON com estas 4 chaves:
 1. "ruido_ignorado": booleano (true se for apenas barulho/silêncio sem fala; false se houver voz).
-2. "transcricao": O que a pessoa disse, precedido por idioma e perfil vocal (ex: "[PT - Voz Feminina] Onde pego o barco para a Ilha Grande?").
+2. "transcricao": O que a pessoa disse, precedido por idioma e perfil vocal (ex: "[PT - Voz Masculina] Vale a pena ir na cachoeira hoje?").
 3. "resposta": Sua resposta falada no mesmo idioma do visitante (ou vazio "" se ruido_ignorado for true).
-4. "memoria_atualizada": Resumo curto com: (a) Perfil vocal, idioma e nome de cada visitante, e (b) Lugares/assuntos já conversados.
+4. "memoria_atualizada": Resumo curto com: (a) Perfil vocal, idioma e nome de cada visitante, e (b) Lugares/serviços já perguntados.
 `;
 
       bodyGeminiTexto = {
@@ -141,7 +207,7 @@ Retorne APENAS um objeto JSON com estas 4 chaves:
     let dados = {
       ruido_ignorado: false,
       transcricao: "...",
-      resposta: "Olá! Bem-vindo a Angra dos Reis. Como você se chama e o que gostaria de conhecer hoje?",
+      resposta: "Olá! Bem-vindo a Angra dos Reis, aqui no Parque das Palmeiras. Como você se chama e como posso ajudar você hoje?",
       memoria_atualizada: memoriaAnterior,
     };
 
@@ -151,7 +217,6 @@ Retorne APENAS um objeto JSON com estas 4 chaves:
       dados.resposta = jsonBruto;
     }
 
-    // SE FOR APENAS RUÍDO/VENTO: Cancela a geração de voz (TTS) para economizar API e tempo!
     if (dados.ruido_ignorado === true || !dados.resposta || dados.resposta.trim() === "") {
       res.setHeader("X-Ignorado", "1");
       res.setHeader("X-Transcricao", encodeURIComponent(dados.transcricao || "[Ruido Ignorado]"));
