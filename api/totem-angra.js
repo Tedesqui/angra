@@ -1,11 +1,10 @@
-// api/totem-angra.js (Versão Ultra-Rápida: 1 Única Chamada Gemini + Cache de Clima e GPS OSRM)
+// api/totem-angra.js (Guia Ultra-Rápido + GPS OSRM + Historiador, Naufrágios e Piratas Sob Demanda)
 export const config = {
   api: { bodyParser: false },
 };
 
 const COORD_PADRAO_TOTEM = { lat: -22.9968, lon: -44.3045 };
 
-// Caches em memória (persistem enquanto a instância Serverless da Vercel estiver quente)
 let cacheClima = { dados: null, expiraEm: 0 };
 const cacheCoordenadas = new Map();
 const cacheRotasOSRM = new Map();
@@ -76,7 +75,6 @@ function formatarDiaPrevisao(dataIso, indice) {
   return `${nomeDia} (${dia}/${mes})`;
 }
 
-// Clima com Cache de 15 minutos (Evita atrasar as respostas do microfone!)
 async function obterClimaEPrevisaoAngra() {
   if (cacheClima.dados && Date.now() < cacheClima.expiraEm) {
     return cacheClima.dados;
@@ -273,7 +271,7 @@ function extrairJsonLimpo(textoBruto, fallbackMemoria) {
       destino_busca_gps: "",
       idioma_detectado: "pt-BR",
       transcricao: "[Processado]",
-      resposta: textoBruto.replace(/[*#`]/g, "").substring(0, 300),
+      resposta: textoBruto.replace(/[*#`]/g, "").substring(0, 380),
       memoria_atualizada: fallbackMemoria,
     };
   }
@@ -292,7 +290,7 @@ export default async function handler(req, res) {
     );
     const latenciaMs = Date.now() - t0;
     return res.status(200).json({
-      status: "Guia de Angra Ultra-Rapido (Single-Pass + Cache) Online!",
+      status: "Guia de Angra (GPS + Historiador + Naufragios e Piratas) Online!",
       tempoCalculoGpsMs: `${latenciaMs} ms`,
       testeRotaGPS: rotaTeste,
       chaveConfigurada: !!process.env.GEMINI_API_KEY,
@@ -356,13 +354,12 @@ Retorne APENAS um JSON válido com as chaves:
       return res.status(200).end();
     }
 
-    // Busca clima instantâneo do cache (ou da API se expirou os 15 min)
     const dadosClima = await obterClimaEPrevisaoAngra();
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
-    // CHAMADA ÚNICA AO GEMINI (Sem segunda rodada!)
+    // CHAMADA ÚNICA AO GEMINI (Com Modo GPS e Modo Historiador + Naufrágios/Piratas)
     const promptUnico = `
-Você é o Guia Turístico e Navegador GPS de Angra dos Reis (RJ).
+Você é o Guia Turístico, Navegador GPS e Historiador de Angra dos Reis (RJ).
 
 DADOS DE BASTIDORES (SÓ MENCIONE SE SOLICITADO):
 - Ponto de partida exato do Totem: "${localizacaoTotem}".
@@ -370,24 +367,31 @@ DADOS DE BASTIDORES (SÓ MENCIONE SE SOLICITADO):
 - Clima atual: "${dadosClima.agora}" | Previsão: "${dadosClima.previsaoDias}".
 - Memória da conversa e vozes: "${memoriaAnterior}".
 
-REGRAS DE VELOCIDADE E PRECISÃO:
-1. Se o áudio tiver apenas barulho/vento sem fala clara, retorne "ruido_ignorado": true.
-2. Se o visitante perguntar ONDE FICA ou COMO CHEGAR a algum lugar:
+REGRAS DE COMPORTAMENTO (DIREÇÃO, HISTÓRIA, NAUFRÁGIOS E PIRATAS SOB DEMANDA):
+1. FILTRO DE RUÍDO: Se o áudio tiver apenas barulho/vento sem fala clara dirigida ao guia, retorne "ruido_ignorado": true.
+2. MODO HISTORIADOR, NAUFRÁGIOS E PIRATAS (APENAS QUANDO SOLICITADO):
+   - Se o visitante pedir para contar a HISTÓRIA de pontos turísticos, curiosidades, naufrágios ou histórias de piratas da Baía da Ilha Grande:
+     * Patrimônio Histórico: Descobrimento em 6 de janeiro de 1502 (Dia de Reis), Convento do Carmo, Ruínas do Convento São Bernardino de Sena, Igreja Matriz de Nossa Senhora da Conceição, Ermida do Senhor do Bonfim, Lazareto, Aqueduto Imperial e antigo Presídio Cândido Mendes (Dois Rios) na Ilha Grande, Vila Histórica de Mambucaba, Trilha do Ouro e Usina do Bracuhy.
+     * Naufrágios Famosos e Mergulho: Cargueiro panamenho Pinguino (naufragado em 1967 na Enseada do Sítio Forte após incêndio, a 18m de profundidade), Vapor de rodas Califórnia (atacado e afundado em 1866 na Praia Vermelha/Araçatiba), encouraçado de guerra Aquidabã (que explodiu tragicamente em 1906 perto de Jacuecanga) e helicóptero submerso na Ilha de Cataguás/Gipóia.
+     * Corsários e Piratas: Histórias reais dos séculos XVI e XVII de corsários ingleses (como Thomas Cavendish em 1591), franceses e holandeses que usavam as enseadas da Ilha Grande (Abraão, Saco do Céu, Palmas) para esconder navios, abastecer água doce e emboscar galeões de ouro vindos de Paraty, além do lendário fazendeiro/corsário Jorge Grego em Dois Rios e lendas de tesouros enterrados.
+   - Defina "precisa_rota_gps": false (a menos que ele também tenha perguntado como chegar ao local).
+   - Conte a história de forma envolvente, rica em datas e curiosidades reais, em até 4 frases curtas (máximo de 75 palavras).
+   - NUNCA conte histórias longas se a pessoa só perguntou uma direção rápida.
+3. MODO NAVEGADOR GPS (QUANDO PERGUNTAREM ONDE FICA OU COMO CHEGAR):
    - Defina "precisa_rota_gps": true.
-   - Em "destino_busca_gps", coloque APENAS o nome curto e limpo do local ou rua em Angra para o mapa OpenStreetMap achar rápido (ex: "Shopping Piratas", "Rede Market Balneário", "Cais de Santa Luzia", "Santa Casa de Angra", "Praia do Bonfim").
-   - Na sua "resposta", diga de forma curta (1 frase de até 22 palavras) qual é o local mais próximo, pois o nosso sistema vai anexar automaticamente a frase com os metros e curvas do GPS logo após a sua frase!
-3. Se NÃO for pergunta de direção, defina "precisa_rota_gps": false e responda normalmente em até 3 frases curtas (45 palavras).
-4. Diferencie os visitantes pelo timbre de voz no áudio e responda sempre no mesmo idioma do visitante.
+   - Em "destino_busca_gps", coloque APENAS o nome curto e limpo do local ou rua em Angra para o mapa OpenStreetMap achar rápido (ex: "Convento do Carmo", "Shopping Piratas", "Rede Market Balneário", "Cais de Santa Luzia").
+   - Na sua "resposta", diga de forma curta (1 frase de até 22 palavras) qual é o local, pois o nosso sistema vai anexar automaticamente a frase com os metros e curvas do GPS logo após a sua frase!
+4. IDIOMA E TIMBRE: Diferencie os visitantes pelo timbre de voz no áudio para não trocar os nomes e responda sempre no mesmo idioma do visitante.
 
 Retorne ESTRITAMENTE um bloco JSON válido:
 {
   "ruido_ignorado": false,
   "precisa_rota_gps": true ou false,
-  "destino_busca_gps": "Nome curto do local para o OpenStreetMap",
+  "destino_busca_gps": "Nome curto do local para o OpenStreetMap (ou vazio)",
   "idioma_detectado": "pt",
   "transcricao": "[Idioma - Perfil da Voz] O que a pessoa disse",
-  "resposta": "Sua resposta falada limpa (sem asteriscos)",
-  "memoria_atualizada": "Resumo com perfis vocais/nomes e assuntos"
+  "resposta": "Sua resposta falada limpa (sem asteriscos e sem emojis)",
+  "memoria_atualizada": "Resumo com perfis vocais/nomes e assuntos/histórias contadas"
 }
 `;
 
@@ -425,7 +429,6 @@ Retorne ESTRITAMENTE um bloco JSON válido:
       return res.status(200).end();
     }
 
-    // INJEÇÃO LOCAL DE ROTA GPS (0ms de custo de IA, sem precisar chamar o Gemini de novo!)
     if (dados.precisa_rota_gps && dados.destino_busca_gps) {
       const rotaOSRM = await calcularRotaExataOSRM(
         localizacaoTotem,
