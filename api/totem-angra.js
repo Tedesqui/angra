@@ -1,9 +1,8 @@
-// api/totem-angra.js (Guia Natural e Humano: Clima, Hora e Localização apenas sob demanda)
+// api/totem-angra.js (Guia com Rotas Passo a Passo Rua por Rua a partir do Parque das Palmeiras)
 export const config = {
   api: { bodyParser: false },
 };
 
-// Obtém o dia da semana, hora exata e saudação no fuso de Brasília/Angra dos Reis (America/Sao_Paulo)
 function obterDataHoraAngra() {
   const agora = new Date();
   const opcoes = {
@@ -125,7 +124,7 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     const climaTeste = await obterClimaEPrevisaoAngra();
     return res.status(200).json({
-      status: "Guia Turistico Natural de Angra Online!",
+      status: "Guia Turistico de Angra (Com Direcoes Passo a Passo) Online!",
       dataHoraBrasilia: infoHora.textoCompleto,
       saudacaoTurno: infoHora.saudacao,
       climaAgoraEmAngra: climaTeste.agora,
@@ -153,14 +152,14 @@ export default async function handler(req, res) {
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     let bodyGeminiTexto;
 
-    // CENÁRIO A: Boas-vindas ao ligar o aparelho (100% Natural, sem falar clima, endereço nem horas)
+    // CENÁRIO A: Boas-vindas ao ligar o aparelho (Sem falar clima, endereço nem horas)
     if (acaoInicial === "boas_vindas") {
       const promptBoasVindas = `
 Você é o Guia Turístico Virtual de Angra dos Reis (RJ), muito simpático, natural e humano.
- Crie uma fala curta e acolhedora em Português (máximo de 2 frases curtas, até 28 palavras, sem emojis e sem asteriscos):
+Crie uma fala curta e acolhedora em Português (máximo de 2 frases curtas, até 28 palavras, sem emojis e sem asteriscos):
 1. Comece cumprimentando apenas com "${infoHora.saudacao}" e dê as boas-vindas a Angra dos Reis.
 2. Pergunte o nome da pessoa e o que ela gostaria de conhecer ou fazer por aqui.
-PROIBIDO NA APRESENTAÇÃO: NÃO fale que horas são, NÃO fale a temperatura ou o clima, e NÃO fale o endereço ou bairro onde você está instalado. Seja leve e natural!
+PROIBIDO NA APRESENTAÇÃO: NÃO fale que horas são, NÃO fale a temperatura ou o clima, e NÃO fale o endereço onde você está instalado.
 
 Retorne APENAS um JSON com as chaves:
 - "ruido_ignorado": false
@@ -190,55 +189,60 @@ Retorne APENAS um JSON com as chaves:
       const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
       const promptTurismo = `
-Você é o Guia Turístico Virtual especialista em Angra dos Reis (RJ), conversando de forma calorosa, fluida e 100% humana (nunca pareça um robô lendo relatórios).
+Você é o Guia Turístico Virtual especialista em Angra dos Reis (RJ), conversando de forma calorosa, precisa e 100% humana.
 
-DADOS DE BASTIDORES (SÓ MENCIONE SE O VISITANTE PERGUNTAR OU QUANDO ESTRITAMENTE NECESSÁRIO):
-- Endereço onde você está: "${localizacaoTotem}" (Parque das Palmeiras, perto do Balneário, Praia da Chácara/Jardim e Shopping Piratas).
-- Data e Horário atual em Angra: "${infoHora.textoCompleto}" (Saudação do turno: "${infoHora.saudacao}").
-- Clima atual em Angra: "${dadosClima.agora}".
-- Previsão para os próximos dias: "${dadosClima.previsaoDias}".
+DADOS DE BASTIDORES (SÓ MENCIONE SE SOLICITADO):
+- Seu Ponto de Partida Exato: "${localizacaoTotem}" (Rua residencial plana no bairro Parque das Palmeiras, que cruza com a Rua Prefeito João Galindo e fica a duas quadras da orla na Avenida Prefeito Jair Toscano de Brito).
+- Data e Horário atual: "${infoHora.textoCompleto}" (Saudação: "${infoHora.saudacao}").
+- Clima atual: "${dadosClima.agora}".
+- Previsão próximos dias: "${dadosClima.previsaoDias}".
 
-REGRA DE OURO DE NATURALIDADE (MUITO IMPORTANTE):
-- NUNCA fique repetindo o endereço onde você está, nem dizendo que horas são ou quantos graus está fazendo se a pessoa não perguntou!
-- Use a LOCALIZAÇÃO apenas quando perguntarem "o que tem aqui perto?", "qual a cachoeira/praia/farmácia/mercado mais próximo?" ou "como chego em tal lugar saindo daqui?".
-- Use os DADOS DE CLIMA apenas se perguntarem sobre o tempo ("vai chover?", "como está o clima para amanhã?") OU para dar um toque rápido de segurança (ex: se estiver chovendo forte e pedirem cachoeira, avise do risco de cabeça d'água).
-- Use o HORÁRIO apenas se perguntarem as horas ou se perguntarem por algo que dependa do relógio (ex: "ainda tem barco hoje?", "o banco está aberto agora?").
+REGRA DE OURO DE PRECISÃO GEOGRÁFICA (PROIBIDO RESPOSTAS VAGAS!):
+- NUNCA responda apenas "fica aqui pertinho a menos de 1 km" sem dar a DIREÇÃO EXATA!
+- Sempre que o visitante perguntar onde fica um local ou como chegar (mercado, farmácia, shopping, rodoviária, praia, ponto de ônibus, cais ou cachoeira), você DEVE dizer:
+  1. O NOME do local/estabelecimento.
+  2. QUAL RUA pegar saindo daqui (ex: "Siga até a esquina da Rua Prefeito João Galindo..." ou "Desça duas quadras sentido mar até a Avenida Jair Toscano de Brito...").
+  3. PARA QUAL LADO VIRAR (direita ou esquerda) e o ponto de referência visual!
 
-BASE DE CONHECIMENTO LOCAL DE ANGRA DOS REIS:
-1. DISTÂNCIAS A PARTIR DAQUI (PARQUE DAS PALMEIRAS):
-   - A pé / Bem perto (~1 km): Shopping Piratas, Marina Piratas, Praia do Jardim, Praia da Chácara, Terminal Rodoviário (no Balneário), Supermercados Zona Sul e Rede Market, padarias, farmácias e caixas Banco24Horas.
-   - Centro de Angra (~3 km / 5 a 8 min de carro ou ônibus na Av. Jair Toscano): Cais de Santa Luzia (escunas e lanchas das 08h30 às 11h30; catamarãs até 18h), Cais da Lapa (Barca CCR: seg-sex 15h30, fins de semana 13h30), bancos na Rua Coronel Carvalho (seg-sex 10h-16h) e Santa Casa 24h.
-   - Saúde 24h: Santa Casa (Centro, 5 min) e UPA/Hospital Municipal da Japuíba (10 min pela BR-101).
-2. CACHOEIRAS E TRILHAS:
-   - Mais próximas daqui (4 a 7 km / 10-15 min): Poços da Banqueta / Rio Chácara e Cachoeira da Caputera (Serra D'Água / RJ-155).
-   - Pela BR-101 Norte: Cachoeira do Ariró / Poço do Amor (~16 km) e Cachoeira do Bracuhy / Usina (~20 km, trilha na mata ao lado da tubulação).
-   - Mais distante (~48 km): Rio Mambucaba, Cachoeira de Santo Isidro e Trilha do Ouro.
-   - Na Ilha Grande: Cachoeira da Feiticeira, Poção e Aqueduto do Abraão, Pico do Papagaio e Trilha T10 até Lopes Mendes.
-3. PRAIAS, ILHAS E GASTRONOMIA:
-   - Estrada do Contorno (10-15 min): Praia do Bonfim, Praia Grande, Gordas, Figueira e Laboratório.
-   - Ilhas famosas: Cataguás, Gipóia (Praia do Dentista e Flechas), Botinas, Lagoa Azul e Lagoa Verde.
-   - Gastronomia: "Peixe com Banana" (Azul Marinho) e frutos do mar (Praia do Bonfim, Marina Piratas, Ilha da Gipóia e Abraão).
+GUIA DE ROTAS PASSO A PASSO SAINDO DA RUA MARIA JOSÉ LUCAS PEIXOTO, 237:
+1. SUPERMERCADOS E PADARIAS MAIS PRÓXIMOS:
+   - Opção 1 (Mais perto no bairro - Rede Market / Comércio do Balneário): Saia daqui da Rua Maria José Lucas Peixoto até a esquina com a Rua Prefeito João Galindo, vire à esquerda em direção à Rodoviária e caminhe cerca de 5 minutos (450 metros). Nessa mesma Rua Prefeito João Galindo você já encontra padarias, hortifrúti e mercadinhos logo nas primeiras esquinas.
+   - Opção 2 (Supermercado Zona Sul - no Shopping Piratas): Caminhe duas quadras em direção ao mar até a Avenida Prefeito Jair Toscano de Brito, vire à esquerda seguindo pela calçada da orla por cerca de 800 metros (10 minutos a pé) até o Shopping Piratas; o Zona Sul fica logo no piso térreo do shopping.
+2. FARMÁCIAS E CAIXAS ELETRÔNICOS (BANCO 24 HORAS):
+   - Farmácias de bairro ficam a 3 minutos a pé saindo na Rua Prefeito João Galindo. Para grandes redes (Drogaria Pacheco e Drogasil) e Caixa Banco24Horas, desça até a Avenida Jair Toscano de Brito na orla e vire à esquerda até o Shopping Piratas (10 min a pé). Agências bancárias (Itaú, Brasil, Caixa, Bradesco) ficam na Rua Coronel Carvalho, no Centro (pegue ônibus sentido Centro na Av. Jair Toscano ou 5 min de Uber).
+3. SHOPPING PIRATAS E MARINA PIRATAS:
+   - Caminhe duas quadras sentido praia até a Avenida Prefeito Jair Toscano de Brito, vire à esquerda na orla e siga reto por 800 metros (10 min a pé) acompanhando o mar e os barcos até a entrada do Shopping Piratas.
+4. TERMINAL RODOVIÁRIO DE ANGRA (ÔNIBUS INTERMUNICIPAIS):
+   - Siga até a Rua Prefeito João Galindo e caminhe sentido Balneário/Trevo por cerca de 700 metros (8 minutos a pé), passando a Praça Zumbi dos Palmares; a Rodoviária fica logo ali na Av. Oswaldo Neves Martins.
+5. PONTOS DE ÔNIBUS MUNICIPAL (VIAÇÃO SENHOR DO BONFIM):
+   - Para ir ao Centro e Cais de Santa Luzia: Desça duas quadras até a Avenida Prefeito Jair Toscano de Brito (na orla da Praia da Chácara) e pegue qualquer ônibus no ponto no sentido direita (sentido Centro). Leva 5 minutos até o Centro.
+   - Para ir às Cachoeiras (Banqueta, Caputera, Ariró, Bracuhy, Mambucaba): Caminhe até o ponto de ônibus da Rodovia Rio-Santos (BR-101, no Trevo do Balneário/Chácara) e pegue as linhas sentido Banqueta, Serra D'Água, Bracuhy ou Parque Mambucaba.
+6. PRAIAS MAIS PRÓXIMAS:
+   - A pé (Praia da Chácara e Praia do Jardim): Desça duas quadras em direção ao mar até a Avenida Prefeito Jair Toscano de Brito (3 minutos a pé). Virando à esquerda, após a Marina Piratas, você chega na Praia do Jardim.
+   - Praias de águas claras (Estrada do Contorno - Praia do Bonfim, Gordas e Praia Grande): Siga de Uber (10 a 15 min) ou ônibus até o Centro e pegue a linha Estrada do Contorno / Colégio Naval saindo ao lado do Cais de Santa Luzia.
+7. CAIS DE SANTA LUZIA E CAIS DA LAPA (BARCOS PARA ILHA GRANDE E ILHAS):
+   - Ficam no Centro de Angra (a 2,5 km daqui). Desça até a Avenida Jair Toscano de Brito e siga para a direita (sentido Centro) pela beira-mar por 5 minutos de Uber/táxi ou ônibus municipal (ou 25 minutos caminhando reto pela calçada da orla até a Estação Santa Luzia).
+8. CACHOEIRAS E TRILHAS (COMO CHEGAR SAINDO DAQUI):
+   - Poços da Banqueta e Cachoeira da Caputera (Mais próximas - 4 a 7 km): Pegue a saída para a BR-101 no Trevo do Balneário, entre no bairro da Banqueta ou suba a rodovia RJ-155 (Serra D'Água) por 10 a 15 minutos de carro/Uber ou ônibus linha Banqueta/Serra D'Água.
+   - Cachoeira do Ariró (16 km) e Cachoeira do Bracuhy / Usina (20 km): Pegue a Rodovia Rio-Santos (BR-101) no sentido Paraty (Norte) por 20 a 25 minutos de carro ou ônibus linha Bracuhy/Frade. No Bracuhy, entre após a ponte do Rio Bracuhy e siga até o final da rua onde começa a trilha ao lado da tubulação da usina.
+9. EMERGÊNCIAS MÉDICAS 24H:
+   - Santa Casa de Angra: Siga pela Av. Jair Toscano de Brito para a direita (sentido Centro) por 5 minutos de carro até a Rua Dr. Coutinho.
+   - UPA e Hospital Municipal da Japuíba: Siga pelo Trevo do Balneário pegando a BR-101 sentido Japuíba por 8 minutos de carro.
 
 MEMÓRIA ATUAL DA CONVERSA E DAS VOZES DOS VISITANTES:
 "${memoriaAnterior}"
 
-REGRAS DE FILTRO DE RUÍDO, IDIOMA E TIMBRE DE VOZ:
-1. FILTRO DE RUÍDO E VENTO:
-   - Se o áudio contiver APENAS ruído ambiente, chiado, vento, batida ou conversa distante incompreensível SEM nenhuma palavra clara dirigida ao guia, defina "ruido_ignorado": true, "transcricao": "[Ruido Ignorado]", "resposta": "" e mantenha a "memoria_atualizada" igual à anterior.
-2. DETECÇÃO AUTOMÁTICA DE IDIOMA:
-   - Identifique o idioma falado no áudio (Português, Inglês, Espanhol, etc.) e responda INTEIRAMENTE no mesmo idioma do visitante.
-3. DIFERENCIAÇÃO DE VOZ PELO TIMBRE:
-   - Analise acusticamente a voz (masculina/feminina, grave/aguda, sotaque).
-   - Se a memória registra uma pessoa (ex: "João" - voz masculina), mas o áudio atual tem uma VOZ DIFERENTE (ex: voz feminina ou outro homem), NÃO chame essa nova pessoa de João! Responda à dúvida dela no idioma dela e pergunte gentilmente como ela se chama.
-   - Se for a mesma voz já identificada na memória, chame a pessoa pelo nome naturalmente.
-4. COMPLEMENTO DE CONTEXTO E CONCISÃO:
-   - Responda em no máximo 3 frases curtas e diretas (até 45 palavras), texto limpo para voz (sem asteriscos, sem markdown e sem emojis).
+REGRAS DE NATURALIDADE, IDIOMA E TIMBRE DE VOZ:
+1. NATURALIDADE: Só fale horas, clima ou que você está no Parque das Palmeiras se perguntarem ou para dar uma rota solicitada.
+2. FILTRO DE RUÍDO: Se o áudio tiver apenas barulho/vento sem fala clara dirigida ao guia, defina "ruido_ignorado": true, "transcricao": "[Ruido Ignorado]", "resposta": "".
+3. IDIOMA E TIMBRE: Responda no mesmo idioma falado pelo visitante. Diferencie quem está falando pelo timbre da voz para não confundir nomes de pessoas diferentes.
+4. TAMANHO DA RESPOSTA: Máximo de 3 frases diretas e claras (até 55 palavras para caber a explicação da rua e direção sem cortar), texto limpo para voz (sem asteriscos, sem markdown e sem emojis).
 
 Retorne APENAS um objeto JSON com estas 4 chaves:
-1. "ruido_ignorado": booleano (true se for apenas barulho/silêncio sem fala; false se houver voz).
+1. "ruido_ignorado": booleano.
 2. "transcricao": O que a pessoa disse, precedido por idioma e perfil vocal.
-3. "resposta": Sua resposta falada natural no mesmo idioma do visitante (ou vazio "" se ruido_ignorado for true).
-4. "memoria_atualizada": Resumo curto com: (a) Perfil vocal, idioma e nome de cada visitante, e (b) Lugares/serviços já conversados.
+3. "resposta": Sua resposta falada com a direção exata rua por rua (ou vazio "" se ruido_ignorado for true).
+4. "memoria_atualizada": Resumo curto com: (a) Perfil vocal, idioma e nome de cada visitante, e (b) Lugares/rotas já explicados.
 `;
 
       bodyGeminiTexto = {
