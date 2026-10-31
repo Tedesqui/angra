@@ -1,43 +1,11 @@
-// api/totem-angra.js (Versão TURBO: Thinking Desativado + GPS Instantâneo + Sem Gargalo de Search)
+// api/totem-angra.js (Guia Ultra-Rápido + GPS OSRM + Historiador, Naufrágios e Piratas Sob Demanda)
 export const config = {
   api: { bodyParser: false },
 };
 
 const COORD_PADRAO_TOTEM = { lat: -22.9968, lon: -44.3045 };
 
-// Dicionário Instantâneo (0ms) dos locais mais buscados em Angra (evita esperar a API Nominatim!)
-const LOCAIS_RAPIDOS_ANGRA = {
-  "shopping piratas": { lat: -23.0016, lon: -44.3029, nomeOficial: "Shopping Piratas" },
-  "marina piratas": { lat: -23.0022, lon: -44.3035, nomeOficial: "Marina Piratas" },
-  "zona sul": { lat: -23.0015, lon: -44.3028, nomeOficial: "Supermercado Zona Sul (Shopping Piratas)" },
-  "rede market": { lat: -22.9965, lon: -44.3075, nomeOficial: "Supermercado Rede Market (Balneário)" },
-  "mercado": { lat: -22.9965, lon: -44.3075, nomeOficial: "Supermercado Rede Market (Rua Pref. João Galindo)" },
-  "supermercado": { lat: -22.9965, lon: -44.3075, nomeOficial: "Supermercado Rede Market (Balneário)" },
-  "farmacia": { lat: -23.0014, lon: -44.3029, nomeOficial: "Drogaria no Shopping Piratas / João Galindo" },
-  "drogaria": { lat: -23.0014, lon: -44.3029, nomeOficial: "Drogaria no Shopping Piratas" },
-  "rodoviaria": { lat: -22.9972, lon: -44.3088, nomeOficial: "Terminal Rodoviário de Angra dos Reis" },
-  "cais de santa luzia": { lat: -23.0094, lon: -44.3182, nomeOficial: "Cais de Santa Luzia (Centro)" },
-  "cais da lapa": { lat: -23.0079, lon: -44.3168, nomeOficial: "Cais da Lapa (Centro)" },
-  "centro": { lat: -23.0085, lon: -44.3175, nomeOficial: "Centro de Angra dos Reis" },
-  "convento do carmo": { lat: -23.0088, lon: -44.3179, nomeOficial: "Convento do Carmo (Praça Gen. Osório)" },
-  "igreja matriz": { lat: -23.0075, lon: -44.3188, nomeOficial: "Igreja Matriz de Nossa Senhora da Conceição" },
-  "santa casa": { lat: -23.0068, lon: -44.3195, nomeOficial: "Santa Casa de Misericórdia de Angra" },
-  "hospital": { lat: -23.0068, lon: -44.3195, nomeOficial: "Hospital Santa Casa de Angra" },
-  "upa": { lat: -22.9765, lon: -44.2942, nomeOficial: "UPA / Hospital Municipal da Japuíba" },
-  "praia da chacara": { lat: -22.9998, lon: -44.3055, nomeOficial: "Praia da Chácara" },
-  "praia do jardim": { lat: -23.0038, lon: -44.3025, nomeOficial: "Praia do Jardim" },
-  "praia do bonfim": { lat: -23.0218, lon: -44.3275, nomeOficial: "Praia do Bonfim" },
-  "praia grande": { lat: -23.0252, lon: -44.3315, nomeOficial: "Praia Grande" },
-  "praia das gordas": { lat: -23.0205, lon: -44.3258, nomeOficial: "Praia das Gordas" },
-  "colegio naval": { lat: -23.0155, lon: -44.3238, nomeOficial: "Colégio Naval (Enseada Batista das Neves)" },
-  "cachoeira da caputera": { lat: -22.9785, lon: -44.3150, nomeOficial: "Estrada da Caputera / Serra D'Água" },
-  "banqueta": { lat: -22.9710, lon: -44.3020, nomeOficial: "Poços da Banqueta" },
-  "bracuhy": { lat: -22.9055, lon: -44.3895, nomeOficial: "Cachoeira do Bracuhy (Usina)" },
-  "ariro": { lat: -22.9120, lon: -44.3390, nomeOficial: "Cachoeira do Ariró" },
-  "banco": { lat: -23.0082, lon: -44.3180, nomeOficial: "Agências Bancárias (Rua Coronel Carvalho)" },
-};
-
-let cacheClima = { dados: "Sol entre nuvens, 27°C.", previsaoDias: "Dias firmes.", expiraEm: 0 };
+let cacheClima = { dados: null, expiraEm: 0 };
 const cacheCoordenadas = new Map();
 const cacheRotasOSRM = new Map();
 
@@ -48,81 +16,121 @@ function obterDataHoraAngra() {
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   };
 
-  const partes = new Intl.DateTimeFormat("pt-BR", opcoes).formatToParts(agora);
+  const formatador = new Intl.DateTimeFormat("pt-BR", opcoes);
+  const partes = formatador.formatToParts(agora);
   const mapa = {};
   for (const p of partes) mapa[p.type] = p.value;
 
   const horaNum = parseInt(mapa.hour, 10);
   let saudacao = "Boa noite";
-  if (horaNum >= 5 && horaNum < 12) saudacao = "Bom dia";
-  else if (horaNum >= 12 && horaNum < 18) saudacao = "Boa tarde";
+  let periodo = "noite";
+
+  if (horaNum >= 5 && horaNum < 12) {
+    saudacao = "Bom dia";
+    periodo = "manhã";
+  } else if (horaNum >= 12 && horaNum < 18) {
+    saudacao = "Boa tarde";
+    periodo = "tarde";
+  }
 
   return {
-    textoCompleto: `${mapa.weekday}, ${mapa.day}/${mapa.month} às ${mapa.hour}:${mapa.minute}`,
+    textoCompleto: `${mapa.weekday}, ${mapa.day}/${mapa.month}/${mapa.year} às ${mapa.hour}:${mapa.minute} (Período da ${periodo})`,
     saudacao,
   };
 }
 
-// Atualiza o clima em segundo plano sem nunca travar a pergunta do turista!
-async function obterClimaRapido() {
-  if (Date.now() < cacheClima.expiraEm) return cacheClima;
+function traduzirCodigoWMO(codigo) {
+  const codigosWMO = {
+    0: "Céu limpo e ensolarado",
+    1: "Predominantemente aberto",
+    2: "Sol entre nuvens",
+    3: "Céu encoberto / nublado",
+    45: "Nevoeiro",
+    51: "Garoa leve",
+    53: "Garoa moderada",
+    55: "Garoa intensa",
+    61: "Chuva fraca",
+    63: "Chuva moderada",
+    65: "Chuva forte",
+    80: "Pancadas de chuva rápidas",
+    81: "Pancadas de chuva moderadas",
+    82: "Pancadas de chuva fortes",
+    95: "Tempestade com trovoadas",
+  };
+  return codigosWMO[codigo] || "Tempo variável";
+}
+
+function formatarDiaPrevisao(dataIso, indice) {
+  const [ano, mes, dia] = dataIso.split("-");
+  const dataObj = new Date(Number(ano), Number(mes) - 1, Number(dia), 12, 0, 0);
+  const nomeDia = new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(dataObj);
+  if (indice === 0) return `Hoje (${dia}/${mes})`;
+  if (indice === 1) return `Amanhã (${dia}/${mes})`;
+  return `${nomeDia} (${dia}/${mes})`;
+}
+
+async function obterClimaEPrevisaoAngra() {
+  if (cacheClima.dados && Date.now() < cacheClima.expiraEm) {
+    return cacheClima.dados;
+  }
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 900); // Máximo 0.9s!
+    const timeout = setTimeout(() => controller.abort(), 1800);
 
     const url =
-      "https://api.open-meteo.com/v1/forecast?latitude=-22.9968&longitude=-44.3045&current=temperature_2m,precipitation,weather_code&daily=weather_code,temperature_2m_max,precipitation_probability_max&forecast_days=3&timezone=America%2FSao_Paulo";
+      "https://api.open-meteo.com/v1/forecast?latitude=-22.9968&longitude=-44.3045&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=4&timezone=America%2FSao_Paulo";
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
 
-    if (res.ok) {
-      const data = await res.json();
-      const c = data.current;
-      const d = data.daily;
-      const temp = c ? Math.round(c.temperature_2m) : 26;
-      const chuva = c ? c.precipitation : 0;
-      const amanhaMax = d?.temperature_2m_max?.[1] ? Math.round(d.temperature_2m_max[1]) : 28;
-      const amanhaChuva = d?.precipitation_probability_max?.[1] ?? 10;
+    if (!res.ok) return { agora: "Indisponível", previsaoDias: "Indisponível" };
+    const data = await res.json();
+    const c = data.current;
+    const d = data.daily;
 
-      cacheClima = {
-        dados: `${temp}°C agora (${chuva > 0 ? "Chovendo" : "Sem chuva"}).`,
-        previsaoDias: `Amanhã: Máx ${amanhaMax}°C, chance de chuva ${amanhaChuva}%.`,
-        expiraEm: Date.now() + 20 * 60 * 1000,
-      };
+    const condicaoAgora = c ? traduzirCodigoWMO(c.weather_code) : "Indisponível";
+    const textoAgora = c
+      ? `${condicaoAgora}, ${Math.round(c.temperature_2m)}°C (Sensação: ${Math.round(c.apparent_temperature)}°C), Chuva: ${c.precipitation} mm.`
+      : "Indisponível.";
+
+    let listaDias = [];
+    if (d && d.time) {
+      for (let i = 0; i < d.time.length; i++) {
+        listaDias.push(
+          `${formatarDiaPrevisao(d.time[i], i)}: ${traduzirCodigoWMO(d.weather_code[i])}, Mín ${Math.round(d.temperature_2m_min[i])}°C/Máx ${Math.round(d.temperature_2m_max[i])}°C, Chuva: ${d.precipitation_probability_max?.[i] ?? 0}%`
+        );
+      }
     }
-  } catch (e) {}
-  return cacheClima;
+
+    const resultado = { agora: textoAgora, previsaoDias: listaDias.join(" | ") };
+    cacheClima = { dados: resultado, expiraEm: Date.now() + 15 * 60 * 1000 };
+    return resultado;
+  } catch (e) {
+    return cacheClima.dados || { agora: "Indisponível", previsaoDias: "Indisponível" };
+  }
 }
 
-async function buscarCoordenadasInstantanea(termoBusca) {
-  const chave = termoBusca
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-
-  // 1. Verifica no Dicionário Instantâneo de Angra (0 milissegundos!)
-  for (const [k, val] of Object.entries(LOCAIS_RAPIDOS_ANGRA)) {
-    if (chave.includes(k) || k.includes(chave)) return val;
-  }
-
+// ============================================================================
+// MOTOR GPS RÁPIDO COM CACHE E FORMATADOR ZERO-LATÊNCIA
+// ============================================================================
+async function buscarCoordenadasOSM(termoBusca) {
+  const chave = termoBusca.toLowerCase().trim();
   if (cacheCoordenadas.has(chave)) return cacheCoordenadas.get(chave);
 
-  // 2. Fallback rápido no Nominatim (timeout curto de 1.1s)
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1100);
-    const query = encodeURIComponent(`${termoBusca}, Angra dos Reis, RJ`);
+    const timeout = setTimeout(() => controller.abort(), 1600);
+    const query = encodeURIComponent(`${termoBusca}, Angra dos Reis, RJ, Brasil`);
     const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`;
 
     const res = await fetch(url, {
-      headers: { "User-Agent": "TotemAngraTurbo/3.0" },
+      headers: { "User-Agent": "TotemGuiaAngra/2.0 (FastRoute)" },
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -149,15 +157,18 @@ function traduzirManobraCurta(step, idioma = "pt") {
   const rua = step.name ? step.name : "";
   const dist = Math.round(step.distance || 0);
 
-  if (dist < 15 || tipo === "arrive" || !rua) return null;
+  if (dist < 12 || tipo === "arrive" || !rua) return null;
 
-  if (idioma.toLowerCase().startsWith("en")) {
-    const dirEn = mod.includes("left") ? "turn left on" : mod.includes("right") ? "turn right on" : "follow";
-    return `${dirEn} ${rua} for ${dist}m`;
+  const ehIngles = idioma.toLowerCase().startsWith("en");
+  const ehEspanhol = idioma.toLowerCase().startsWith("es");
+
+  if (ehIngles) {
+    const dirEn = mod.includes("left") ? "turn left onto" : mod.includes("right") ? "turn right onto" : "continue on";
+    return tipo === "depart" ? `head on ${rua} for ${dist} meters` : `${dirEn} ${rua} for ${dist} meters`;
   }
-  if (idioma.toLowerCase().startsWith("es")) {
+  if (ehEspanhol) {
     const dirEs = mod.includes("left") ? "gira a la izquierda en" : mod.includes("right") ? "gira a la derecha en" : "sigue por";
-    return `${dirEs} ${rua} por ${dist}m`;
+    return tipo === "depart" ? `sal por ${rua} durante ${dist} metros` : `${dirEs} ${rua} por ${dist} metros`;
   }
 
   const dirPt = mod.includes("left")
@@ -171,16 +182,22 @@ function traduzirManobraCurta(step, idioma = "pt") {
 }
 
 async function calcularRotaExataOSRM(enderecoOrigem, destinoDesejado, idioma = "pt") {
-  const chaveRota = `${destinoDesejado}|${idioma}`.toLowerCase().trim();
+  const chaveRota = `${enderecoOrigem}|${destinoDesejado}|${idioma}`.toLowerCase();
   if (cacheRotasOSRM.has(chaveRota)) return cacheRotasOSRM.get(chaveRota);
 
   try {
-    const coordDestino = await buscarCoordenadasInstantanea(destinoDesejado);
+    let coordOrigem = COORD_PADRAO_TOTEM;
+    if (!enderecoOrigem.toLowerCase().includes("maria jose lucas peixoto")) {
+      const buscaOrig = await buscarCoordenadasOSM(enderecoOrigem);
+      if (buscaOrig) coordOrigem = buscaOrig;
+    }
+
+    const coordDestino = await buscarCoordenadasOSM(destinoDesejado);
     if (!coordDestino) return null;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1100); // Timeout rápido de 1.1s
-    const urlOsrm = `https://router.project-osrm.org/route/v1/driving/${COORD_PADRAO_TOTEM.lon},${COORD_PADRAO_TOTEM.lat};${coordDestino.lon},${coordDestino.lat}?overview=false&steps=true`;
+    const timeout = setTimeout(() => controller.abort(), 1600);
+    const urlOsrm = `https://router.project-osrm.org/route/v1/driving/${coordOrigem.lon},${coordOrigem.lat};${coordDestino.lon},${coordDestino.lat}?overview=false&steps=true`;
 
     const res = await fetch(urlOsrm, { signal: controller.signal });
     clearTimeout(timeout);
@@ -195,32 +212,42 @@ async function calcularRotaExataOSRM(enderecoOrigem, destinoDesejado, idioma = "
     const tempoCarroMin = Math.max(1, Math.round(rota.duration / 60));
 
     const passos = rota.legs?.[0]?.steps || [];
-    const manobras = [];
+    const manobrasPrincipais = [];
     for (const s of passos) {
       const m = traduzirManobraCurta(s, idioma);
-      if (m && manobras.length < 2) manobras.push(m);
+      if (m && manobrasPrincipais.length < 3) {
+        manobrasPrincipais.push(m);
+      }
     }
 
     const distTexto =
       distanciaMetros >= 1000
-        ? `${(distanciaMetros / 1000).toFixed(1)} km`
+        ? `${(distanciaMetros / 1000).toFixed(1)} quilômetros`
         : `${distanciaMetros} metros`;
 
     const tempoTexto =
-      distanciaMetros <= 1400 ? `${tempoPeMin} minutos a pé` : `${tempoCarroMin} minutos de carro`;
+      distanciaMetros <= 1500
+        ? `${tempoPeMin} minutos a pé`
+        : `${tempoCarroMin} minutos de carro ou ônibus`;
 
     let fraseGpsPronta = "";
-    if (manobras.length > 0) {
+    if (manobrasPrincipais.length > 0) {
       if (idioma.toLowerCase().startsWith("en")) {
-        fraseGpsPronta = ` It is ${distTexto} away (${tempoTexto}): ${manobras.join(", then ")}.`;
+        fraseGpsPronta = ` It is ${distanciaMetros} meters away: ${manobrasPrincipais.join(", then ")}.`;
       } else if (idioma.toLowerCase().startsWith("es")) {
-        fraseGpsPronta = ` Está a ${distTexto} (${tempoTexto}): ${manobras.join(", luego ")}.`;
+        fraseGpsPronta = ` Está a ${distanciaMetros} metros: ${manobrasPrincipais.join(", luego ")}.`;
       } else {
-        fraseGpsPronta = ` Fica a ${distTexto}, cerca de ${tempoTexto}: ${manobras.join(" e depois ")}.`;
+        fraseGpsPronta = ` Pelo GPS dá ${distTexto}, cerca de ${tempoTexto}: ${manobrasPrincipais.join(", depois ")}.`;
       }
     }
 
-    const resultado = { destinoEncontrado: coordDestino.nomeOficial, fraseFalaDireta: fraseGpsPronta };
+    const resultado = {
+      destinoEncontrado: coordDestino.nomeOficial,
+      distanciaTotal: distTexto,
+      tempoEstimado: tempoTexto,
+      fraseFalaDireta: fraseGpsPronta,
+    };
+
     cacheRotasOSRM.set(chaveRota, resultado);
     return resultado;
   } catch (e) {
@@ -228,17 +255,45 @@ async function calcularRotaExataOSRM(enderecoOrigem, destinoDesejado, idioma = "
   }
 }
 
+function extrairJsonLimpo(textoBruto, fallbackMemoria) {
+  try {
+    const limpo = textoBruto.replace(/```json/gi, "").replace(/```/g, "").trim();
+    const inicio = limpo.indexOf("{");
+    const fim = limpo.lastIndexOf("}");
+    if (inicio !== -1 && fim !== -1) {
+      return JSON.parse(limpo.substring(inicio, fim + 1));
+    }
+    return JSON.parse(limpo);
+  } catch (e) {
+    return {
+      ruido_ignorado: false,
+      precisa_rota_gps: false,
+      destino_busca_gps: "",
+      idioma_detectado: "pt-BR",
+      transcricao: "[Processado]",
+      resposta: textoBruto.replace(/[*#`]/g, "").substring(0, 380),
+      memoria_atualizada: fallbackMemoria,
+    };
+  }
+}
+
 export default async function handler(req, res) {
-  const tInicio = Date.now();
   const infoHora = obterDataHoraAngra();
 
   if (req.method === "GET") {
     const destinoTeste = req.query?.destino || "Shopping Piratas";
-    const rotaTeste = await calcularRotaExataOSRM("", destinoTeste, "pt");
+    const t0 = Date.now();
+    const rotaTeste = await calcularRotaExataOSRM(
+      "Rua Maria José Lucas Peixoto, 237, Parque das Palmeiras",
+      destinoTeste,
+      "pt"
+    );
+    const latenciaMs = Date.now() - t0;
     return res.status(200).json({
-      status: "Guia Angra TURBO Online (Thinking OFF + Dicionario Instantaneo)!",
-      latenciaTotalMs: `${Date.now() - tInicio} ms`,
+      status: "Guia de Angra (GPS + Historiador + Naufragios e Piratas) Online!",
+      tempoCalculoGpsMs: `${latenciaMs} ms`,
       testeRotaGPS: rotaTeste,
+      chaveConfigurada: !!process.env.GEMINI_API_KEY,
     });
   }
 
@@ -254,23 +309,38 @@ export default async function handler(req, res) {
         "Rua Maria José Lucas Peixoto, N° 237 - Parque das Palmeiras, Angra dos Reis - RJ"
     );
     const memoriaAnterior = decodeURIComponent(
-      req.headers["x-memoria-turismo"] || "Sessão recém-iniciada."
+      req.headers["x-memoria-turismo"] ||
+        "Sessão recém-iniciada. Nenhum visitante identificado ainda."
     );
 
     const urlTexto = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    // CENÁRIO A: Boas-vindas Instantâneas
+    // CENÁRIO A: Boas-vindas
     if (acaoInicial === "boas_vindas") {
-      const textoBoasVindas = `${infoHora.saudacao}! Bem-vindo a Angra dos Reis. Como você se chama e o que gostaria de conhecer hoje?`;
-      return await sintetizarEEnviarAudio(
-        {
-          transcricao: "[Boas-Vindas]",
-          resposta: textoBoasVindas,
-          memoria_atualizada: "Sessão iniciada.",
-        },
-        apiKey,
-        res
-      );
+      const promptBoasVindas = `
+Você é o Guia Turístico Virtual de Angra dos Reis (RJ), muito simpático, natural e humano.
+Crie uma fala curta em Português (máximo de 2 frases curtas, até 28 palavras, sem emojis e sem asteriscos):
+1. Cumprimente apenas com "${infoHora.saudacao}" e dê as boas-vindas a Angra dos Reis.
+2. Pergunte o nome da pessoa e como pode ajudá-la.
+PROIBIDO NA APRESENTAÇÃO: NÃO fale horas, NÃO fale clima/temperatura e NÃO fale o endereço do totem.
+
+Retorne APENAS um JSON válido com as chaves:
+{"ruido_ignorado": false, "transcricao": "[Boas-Vindas]", "resposta": "...", "memoria_atualizada": "Sessão iniciada."}
+`;
+
+      const resBoasVindas = await fetch(urlTexto, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: promptBoasVindas }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+      });
+
+      const dataBV = await resBoasVindas.json();
+      const textoBV = dataBV.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+      const dadosBV = extrairJsonLimpo(textoBV, memoriaAnterior);
+      return await sintetizarEEnviarAudio(dadosBV, apiKey, res);
     }
 
     // CENÁRIO B: Pergunta do visitante pelo microfone
@@ -284,32 +354,46 @@ export default async function handler(req, res) {
       return res.status(200).end();
     }
 
-    const dadosClima = await obterClimaRapido();
+    const dadosClima = await obterClimaEPrevisaoAngra();
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
 
-    const promptTurbo = `
+    // CHAMADA ÚNICA AO GEMINI (Com Modo GPS e Modo Historiador + Naufrágios/Piratas)
+    const promptUnico = `
 Você é o Guia Turístico, Navegador GPS e Historiador de Angra dos Reis (RJ).
-Contexto silencioso (só mencione se perguntarem): Totem na "${localizacaoTotem}" (Parque das Palmeiras, perto da Rua Pref. João Galindo, Av. Jair Toscano, Balneário e Shopping Piratas) | Hora: ${infoHora.textoCompleto} | Clima: ${dadosClima.dados} ${dadosClima.previsaoDias} | Memória: "${memoriaAnterior}".
 
-REGRAS DE RESPOSTA ULTRA-RÁPIDA:
-1. Se for apenas barulho/vento sem fala, retorne "ruido_ignorado": true.
-2. DIREÇÕES E LOCALIZAÇÃO: Se perguntarem ONDE FICA ou COMO CHEGAR a um local (mercado, farmácia, shopping, rodoviária, praia, cais, hospital, igreja, cachoeira):
-   - Defina "precisa_rota_gps": true e coloque o nome simples em "destino_busca_gps" (ex: "Rede Market", "Shopping Piratas", "Cais de Santa Luzia", "Praia do Bonfim").
-   - Na "resposta", diga APENAS 1 frase curta (máximo 16 palavras) indicando qual é o local, pois o GPS vai colar os metros e as ruas logo em seguida!
-3. HISTÓRIA, NAUFRÁGIOS E PIRATAS (QUANDO SOLICITADO):
-   - Se pedirem história (fundação em 1502, Convento do Carmo, São Bernardino, Lazareto, Presídio de Dois Rios, naufrágios Pinguino, Califórnia e Aquidabã, ou corsários como Thomas Cavendish e Jorge Grego), defina "precisa_rota_gps": false e conte em até 3 frases curtas (máximo 48 palavras).
-4. Responda no mesmo idioma do visitante, diferencie pessoas pelo timbre da voz e NUNCA use asteriscos ou emojis.
+DADOS DE BASTIDORES (SÓ MENCIONE SE SOLICITADO):
+- Ponto de partida exato do Totem: "${localizacaoTotem}".
+- Horário atual: "${infoHora.textoCompleto}".
+- Clima atual: "${dadosClima.agora}" | Previsão: "${dadosClima.previsaoDias}".
+- Memória da conversa e vozes: "${memoriaAnterior}".
 
-Retorne APENAS JSON:
+REGRAS DE COMPORTAMENTO (DIREÇÃO, HISTÓRIA, NAUFRÁGIOS E PIRATAS SOB DEMANDA):
+1. FILTRO DE RUÍDO: Se o áudio tiver apenas barulho/vento sem fala clara dirigida ao guia, retorne "ruido_ignorado": true.
+2. MODO HISTORIADOR, NAUFRÁGIOS E PIRATAS (APENAS QUANDO SOLICITADO):
+   - Se o visitante pedir para contar a HISTÓRIA de pontos turísticos, curiosidades, naufrágios ou histórias de piratas da Baía da Ilha Grande:
+     * Patrimônio Histórico: Descobrimento em 6 de janeiro de 1502 (Dia de Reis), Convento do Carmo, Ruínas do Convento São Bernardino de Sena, Igreja Matriz de Nossa Senhora da Conceição, Ermida do Senhor do Bonfim, Lazareto, Aqueduto Imperial e antigo Presídio Cândido Mendes (Dois Rios) na Ilha Grande, Vila Histórica de Mambucaba, Trilha do Ouro e Usina do Bracuhy.
+     * Naufrágios Famosos e Mergulho: Cargueiro panamenho Pinguino (naufragado em 1967 na Enseada do Sítio Forte após incêndio, a 18m de profundidade), Vapor de rodas Califórnia (atacado e afundado em 1866 na Praia Vermelha/Araçatiba), encouraçado de guerra Aquidabã (que explodiu tragicamente em 1906 perto de Jacuecanga) e helicóptero submerso na Ilha de Cataguás/Gipóia.
+     * Corsários e Piratas: Histórias reais dos séculos XVI e XVII de corsários ingleses (como Thomas Cavendish em 1591), franceses e holandeses que usavam as enseadas da Ilha Grande (Abraão, Saco do Céu, Palmas) para esconder navios, abastecer água doce e emboscar galeões de ouro vindos de Paraty, além do lendário fazendeiro/corsário Jorge Grego em Dois Rios e lendas de tesouros enterrados.
+   - Defina "precisa_rota_gps": false (a menos que ele também tenha perguntado como chegar ao local).
+   - Conte a história de forma envolvente, rica em datas e curiosidades reais, em até 4 frases curtas (máximo de 75 palavras).
+   - NUNCA conte histórias longas se a pessoa só perguntou uma direção rápida.
+3. MODO NAVEGADOR GPS (QUANDO PERGUNTAREM ONDE FICA OU COMO CHEGAR):
+   - Defina "precisa_rota_gps": true.
+   - Em "destino_busca_gps", coloque APENAS o nome curto e limpo do local ou rua em Angra para o mapa OpenStreetMap achar rápido (ex: "Convento do Carmo", "Shopping Piratas", "Rede Market Balneário", "Cais de Santa Luzia").
+   - Na sua "resposta", diga de forma curta (1 frase de até 22 palavras) qual é o local, pois o nosso sistema vai anexar automaticamente a frase com os metros e curvas do GPS logo após a sua frase!
+4. IDIOMA E TIMBRE: Diferencie os visitantes pelo timbre de voz no áudio para não trocar os nomes e responda sempre no mesmo idioma do visitante.
+
+Retorne ESTRITAMENTE um bloco JSON válido:
 {
   "ruido_ignorado": false,
-  "precisa_rota_gps": false,
-  "destino_busca_gps": "",
+  "precisa_rota_gps": true ou false,
+  "destino_busca_gps": "Nome curto do local para o OpenStreetMap (ou vazio)",
   "idioma_detectado": "pt",
-  "transcricao": "[Idioma/Voz] fala",
-  "resposta": "Fala curta e direta",
-  "memoria_atualizada": "Vozes/nomes e assuntos"
-}`;
+  "transcricao": "[Idioma - Perfil da Voz] O que a pessoa disse",
+  "resposta": "Sua resposta falada limpa (sem asteriscos e sem emojis)",
+  "memoria_atualizada": "Resumo com perfis vocais/nomes e assuntos/histórias contadas"
+}
+`;
 
     const resUnico = await fetch(urlTexto, {
       method: "POST",
@@ -320,51 +404,38 @@ Retorne APENAS JSON:
             role: "user",
             parts: [
               { inlineData: { mimeType: "audio/wav", data: wavBuffer.toString("base64") } },
-              { text: promptTurbo },
+              { text: promptUnico },
             ],
           },
         ],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.3,
-          // SEGREDO DA VELOCIDADE: Desativa o pensamento oculto demorado do Gemini 2.5 Flash!
-          thinkingConfig: { thinkingBudget: 0 },
-        },
+        tools: [{ google_search: {} }],
       }),
     });
 
     const dataUnico = await resUnico.json();
     if (!resUnico.ok) {
-      return res.status(500).json({ etapa: "gemini_turbo", erro: dataUnico });
+      return res.status(500).json({ etapa: "gemini_unico", erro: dataUnico });
     }
 
-    const textoUnico = dataUnico.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    let dados;
-    try {
-      dados = JSON.parse(textoUnico);
-    } catch (e) {
-      dados = {
-        ruido_ignorado: false,
-        precisa_rota_gps: false,
-        transcricao: "[Voz]",
-        resposta: textoUnico.replace(/[*#`{}"]/g, "").substring(0, 220),
-        memoria_atualizada: memoriaAnterior,
-      };
-    }
+    const textoUnico =
+      dataUnico.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "{}";
+    let dados = extrairJsonLimpo(textoUnico, memoriaAnterior);
 
     if (dados.ruido_ignorado === true || (!dados.resposta && !dados.destino_busca_gps)) {
       res.setHeader("X-Ignorado", "1");
+      res.setHeader("X-Transcricao", encodeURIComponent(dados.transcricao || "[Ruido Ignorado]"));
+      res.setHeader("X-Memoria-Turismo", encodeURIComponent(memoriaAnterior));
       res.setHeader("Content-Length", "0");
       return res.status(200).end();
     }
 
-    // Anexa a rota GPS em 0ms (se estiver no dicionário/cache) ou em <1s via OSRM
     if (dados.precisa_rota_gps && dados.destino_busca_gps) {
       const rotaOSRM = await calcularRotaExataOSRM(
         localizacaoTotem,
         dados.destino_busca_gps,
         dados.idioma_detectado || "pt"
       );
+
       if (rotaOSRM && rotaOSRM.fraseFalaDireta) {
         dados.resposta = `${dados.resposta.trim()}${rotaOSRM.fraseFalaDireta}`;
       }
