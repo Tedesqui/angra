@@ -1,11 +1,21 @@
-// api/totem-angra.js (Correção de URL Encode '+' + Tabela Oficial da Suméria)
+// api/totem-angra.js (Com Áudio 0094.mp3 "Deseja jogar novamente?" automático nos Finais)
 export const config = {
   api: { bodyParser: false },
 };
 
+// Número da faixa MP3 com a pergunta: "Você deseja jogar novamente?" (/mp3/0094.mp3)
+const FAIXA_JOGAR_NOVAMENTE = 94;
+
+// Lista de todas as faixas que encerram a partida (Vitória ou Morte) nas duas histórias
+const FAIXAS_FIM_DE_JOGO = new Set([
+  // Finais da Aventura na Suméria
+  102, 108, 109, 113, 117, 121, 123, 124, 127, 132, 133,
+  // Finais de O Resgate do Príncipe Arthur (Vitórias: 51-53 | Mortes: 61-66, 83-84)
+  51, 52, 53, 61, 62, 63, 64, 65, 66, 83, 84,
+]);
+
 // ============================================================================
 // TABELA OFICIAL E ESTRITA DAS 33 AÇÕES DA SUMÉRIA (101 a 133)
-// Fórmula automática no código: Número dito N -> Toca a faixa (100 + N)
 // ============================================================================
 const OPCOES_VALIDAS_SUMERIA = {
   101: [7, 30, 16],     // Ação 1
@@ -44,7 +54,6 @@ const OPCOES_VALIDAS_SUMERIA = {
 };
 
 function parseEstado(estadoStr) {
-  // Remove qualquer '+' residual do urlEncode do Arduino antes de separar os campos
   const limpo = (estadoStr || "").replace(/\+/g, " ");
   const partes = limpo.split("|").map((s) => s.trim());
   const obj = {
@@ -82,7 +91,7 @@ function normalizarTexto(str) {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Motor Determinístico RPG Online - Correção URL Encode Ativa!",
+      status: "Motor Determinístico RPG Online - Com Áudio 0094 (Jogar Novamente)!",
     });
   }
 
@@ -92,7 +101,6 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY ausente");
 
-    // Substitui '+' por '%20' antes do decodeURIComponent para compatibilidade total com o ESP32
     const headerRaw = (req.headers["x-estado-rpg"] || "").replace(/\+/g, "%20");
     const estadoRaw = decodeURIComponent(
       headerRaw ||
@@ -214,7 +222,7 @@ Retorne APENAS este JSON:
       });
     }
 
-    if (fala.includes("reiniciar") || fala.includes("comecar do zero") || fala.includes("jogar novamente")) {
+    if (fala.includes("reiniciar") || fala.includes("comecar do zero") || fala.includes("jogar novamente") || fala.includes("jogar de novo")) {
       const novoEst = { HISTORIA: "MENU", ETAPA: "MENU_PRINCIPAL", ESTILO: "NENHUM", ROTA: "MOINHO", ULTIMO_AUDIO: 85 };
       return res.status(200).json({
         ignorado: false,
@@ -226,7 +234,40 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 3. SELEÇÃO DE PERSONAGENS DA SUMÉRIA (ULTIMO_AUDIO = 86 a 92 ou ETAPA = SELECAO_PERSONAGEM)
+    // 3. RESPOSTA À PERGUNTA "VOCÊ DESEJA JOGAR NOVAMENTE?" (FIM DE JOGO OU 94)
+    // ========================================================================
+    if (est.ULTIMO_AUDIO === FAIXA_JOGAR_NOVAMENTE || FAIXAS_FIM_DE_JOGO.has(est.ULTIMO_AUDIO)) {
+      if (
+        fala === "sim" ||
+        fala.includes("sim ") ||
+        fala.includes("quero") ||
+        fala.includes("jogar") ||
+        fala.includes("comecar") ||
+        fala.includes("vamos") ||
+        fala.includes("claro") ||
+        fala.includes("bora")
+      ) {
+        const novoEst = { HISTORIA: "MENU", ETAPA: "MENU_PRINCIPAL", ESTILO: "NENHUM", ROTA: "MOINHO", ULTIMO_AUDIO: 85 };
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [85],
+          novo_estado: montarEstado(novoEst),
+        });
+      }
+      // Se disser "não" ou qualquer outra coisa no fim de jogo, permanece aguardando sem tocar nada
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "NENHUMA",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: montarEstado(est),
+      });
+    }
+
+    // ========================================================================
+    // 4. SELEÇÃO DE PERSONAGENS DA SUMÉRIA (ULTIMO_AUDIO = 86 a 92)
     // ========================================================================
     if (
       (est.ULTIMO_AUDIO >= 86 && est.ULTIMO_AUDIO <= 92) ||
@@ -258,7 +299,6 @@ Retorne APENAS este JSON:
         fala.includes("iniciar") ||
         fala === "sim";
 
-      // Caso 1: Falou o nome do personagem junto com confirmação ("quero ser mago", "escolho mago")
       if (charDetectado && querConfirmarDireto) {
         est.HISTORIA = "SUMERIA";
         est.ETAPA = "AVENTURA";
@@ -273,7 +313,6 @@ Retorne APENAS este JSON:
         });
       }
 
-      // Caso 2: Falou apenas o nome do personagem (ex: "Mago") -> Toca a descrição (87)
       if (charDetectado) {
         est.HISTORIA = "SUMERIA";
         est.ETAPA = "SELECAO_PERSONAGEM";
@@ -288,7 +327,6 @@ Retorne APENAS este JSON:
         });
       }
 
-      // Caso 3: Já ouviu a descrição (87 a 92) e confirmou ("confirmar", "quero esse", "sim")
       if (est.ULTIMO_AUDIO >= 87 && est.ULTIMO_AUDIO <= 92 && querConfirmarDireto) {
         est.HISTORIA = "SUMERIA";
         est.ETAPA = "AVENTURA";
@@ -312,7 +350,7 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 4. MENU PRINCIPAL (ULTIMO_AUDIO = 85)
+    // 5. MENU PRINCIPAL (ULTIMO_AUDIO = 85)
     // ========================================================================
     if (est.ULTIMO_AUDIO === 85) {
       if (fala.includes("sumeria") || fala.includes("primeira")) {
@@ -353,7 +391,7 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 5. MOTOR DETERMINÍSTICO DAS 33 AÇÕES DA SUMÉRIA (ULTIMO_AUDIO = 101 a 133)
+    // 6. MOTOR DETERMINÍSTICO DAS 33 AÇÕES DA SUMÉRIA (ULTIMO_AUDIO = 101 a 133)
     // ========================================================================
     if (est.ULTIMO_AUDIO >= 101 && est.ULTIMO_AUDIO <= 133) {
       const opcoesPermitidasNaCena = OPCOES_VALIDAS_SUMERIA[est.ULTIMO_AUDIO] || [];
@@ -362,11 +400,17 @@ Retorne APENAS este JSON:
       if (num !== null && opcoesPermitidasNaCena.includes(num)) {
         const proximaFaixa = 100 + num;
         est.ULTIMO_AUDIO = proximaFaixa;
+
+        // Se a faixa de destino for um Fim de Jogo (Morte ou Vitória), anexa o áudio 0094.mp3!
+        const faixasParaTocar = FAIXAS_FIM_DE_JOGO.has(proximaFaixa)
+          ? [proximaFaixa, FAIXA_JOGAR_NOVAMENTE]
+          : [proximaFaixa];
+
         return res.status(200).json({
           ignorado: false,
           acao_sistema: "NENHUMA",
           transcricao: analise.transcricao,
-          faixas: [proximaFaixa],
+          faixas: faixasParaTocar,
           novo_estado: montarEstado(est),
         });
       }
@@ -381,7 +425,7 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 6. CAMPANHA: O RESGATE DO PRÍNCIPE ARTHUR (ULTIMO_AUDIO = 2 a 84)
+    // 7. CAMPANHA: O RESGATE DO PRÍNCIPE ARTHUR (ULTIMO_AUDIO = 2 a 84)
     // ========================================================================
     const resultadoArthur = processarPrincipeArthur(est, fala);
     if (resultadoArthur) {
@@ -503,7 +547,13 @@ function processarPrincipeArthur(est, fala) {
   if (!prox) return null;
 
   est.ULTIMO_AUDIO = prox;
-  return { faixas: [prox], novoEst: est };
+
+  // Se o destino no Príncipe Arthur for Fim de Jogo (Morte ou Vitória), também toca o 0094.mp3!
+  const listaFaixas = FAIXAS_FIM_DE_JOGO.has(prox)
+    ? [prox, FAIXA_JOGAR_NOVAMENTE]
+    : [prox];
+
+  return { faixas: listaFaixas, novoEst: est };
 }
 
 function adicionarCabecalhoWav(pcm, sampleRate) {
