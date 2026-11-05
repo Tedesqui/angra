@@ -1,4 +1,4 @@
-// api/totem-angra.js (Tabela Oficial da Suméria Corrigida + Transcrição Cega Antirruído)
+// api/totem-angra.js (Correção de URL Encode '+' + Tabela Oficial da Suméria)
 export const config = {
   api: { bodyParser: false },
 };
@@ -14,7 +14,7 @@ const OPCOES_VALIDAS_SUMERIA = {
   104: [13, 20],        // Ação 4
   105: [10, 28],        // Ação 5
   106: [21, 17, 2],     // Ação 6
-  107: [12, 25],        // Ação 7 (Corrigido: aceita 12 -> 112 ou 25 -> 125)
+  107: [12, 25],        // Ação 7
   108: [],              // Ação 8: Fim de jogo
   109: [],              // Ação 9: Fim de jogo
   110: [19, 32],        // Ação 10
@@ -44,7 +44,9 @@ const OPCOES_VALIDAS_SUMERIA = {
 };
 
 function parseEstado(estadoStr) {
-  const partes = estadoStr.split("|").map((s) => s.trim());
+  // Remove qualquer '+' residual do urlEncode do Arduino antes de separar os campos
+  const limpo = (estadoStr || "").replace(/\+/g, " ");
+  const partes = limpo.split("|").map((s) => s.trim());
   const obj = {
     HISTORIA: "MENU",
     ETAPA: "MENU_PRINCIPAL",
@@ -53,9 +55,13 @@ function parseEstado(estadoStr) {
     ULTIMO_AUDIO: 85,
   };
   for (const p of partes) {
-    const [k, v] = p.split(":");
-    if (k && v) {
-      obj[k.trim()] = k.trim() === "ULTIMO_AUDIO" ? parseInt(v.trim(), 10) : v.trim();
+    const idx = p.indexOf(":");
+    if (idx !== -1) {
+      const k = p.substring(0, idx).replace(/\+/g, "").trim();
+      const v = p.substring(idx + 1).replace(/\+/g, "").trim();
+      if (k && v) {
+        obj[k] = k === "ULTIMO_AUDIO" ? parseInt(v, 10) : v;
+      }
     }
   }
   return obj;
@@ -76,7 +82,7 @@ function normalizarTexto(str) {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Motor Determinístico RPG Online - Tabela Oficial da Suméria Ativa!",
+      status: "Motor Determinístico RPG Online - Correção URL Encode Ativa!",
     });
   }
 
@@ -86,8 +92,10 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY ausente");
 
+    // Substitui '+' por '%20' antes do decodeURIComponent para compatibilidade total com o ESP32
+    const headerRaw = (req.headers["x-estado-rpg"] || "").replace(/\+/g, "%20");
     const estadoRaw = decodeURIComponent(
-      req.headers["x-estado-rpg"] ||
+      headerRaw ||
         "HISTORIA:MENU | ETAPA:MENU_PRINCIPAL | ESTILO:NENHUM | ROTA:MOINHO | ULTIMO_AUDIO:85"
     );
     const est = parseEstado(estadoRaw);
@@ -103,9 +111,6 @@ export default async function handler(req, res) {
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
     const urlGemini = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    // ========================================================================
-    // PROMPT CEGO: A IA NÃO VÊ AS OPÇÕES DA CENA PARA NUNCA FORÇAR UM NÚMERO
-    // ========================================================================
     const promptTranscricaoCega = `
 Você é um detector acústico forense e transcritor de voz humana em Português do Brasil.
 Você NÃO conhece as regras do jogo e NÃO deve adivinhar intenções.
@@ -118,7 +123,7 @@ TAREFA 1 - DETECÇÃO RIGOROSA DE VOZ HUMANA VS RUÍDO MECÂNICO:
 TAREFA 2 - TRANSCRIÇÃO LITERAL SEM CORREÇÃO:
 - Transcreva exatamente o que a voz humana disse em "transcricao".
 - Se a pessoa falou um número (de 1 a 33), coloque esse número exato no campo "numero_dito" (inteiro). Se não falou número, coloque null.
-- NUNCA substitua um número por outro parecido (se ouvir "doze", escreva 12; se ouvir "vinte e cinco", escreva 25).
+- NUNCA substitua um número por outro parecido.
 
 Retorne APENAS este JSON:
 {
@@ -160,7 +165,7 @@ Retorne APENAS este JSON:
 
     const fala = normalizarTexto(analise.transcricao);
 
-    // 1. Bloqueio imediato se não for voz humana nítida ou se a transcrição for vazia
+    // 1. Bloqueio imediato se não for voz humana nítida
     if (!analise.eh_voz_humana || !fala || fala.length < 2) {
       return res.status(200).json({ ignorado: true });
     }
@@ -185,7 +190,7 @@ Retorne APENAS este JSON:
         acao_sistema: "REPETIR_ULTIMO",
         transcricao: analise.transcricao,
         faixas: [],
-        novo_estado: estadoRaw,
+        novo_estado: montarEstado(est),
       });
     }
 
@@ -195,7 +200,7 @@ Retorne APENAS este JSON:
         acao_sistema: "SALVAR_JOGO",
         transcricao: analise.transcricao,
         faixas: [],
-        novo_estado: estadoRaw,
+        novo_estado: montarEstado(est),
       });
     }
 
@@ -205,7 +210,7 @@ Retorne APENAS este JSON:
         acao_sistema: "CARREGAR_JOGO",
         transcricao: analise.transcricao,
         faixas: [],
-        novo_estado: estadoRaw,
+        novo_estado: montarEstado(est),
       });
     }
 
@@ -221,7 +226,93 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 3. MENU PRINCIPAL (ULTIMO_AUDIO = 85)
+    // 3. SELEÇÃO DE PERSONAGENS DA SUMÉRIA (ULTIMO_AUDIO = 86 a 92 ou ETAPA = SELECAO_PERSONAGEM)
+    // ========================================================================
+    if (
+      (est.ULTIMO_AUDIO >= 86 && est.ULTIMO_AUDIO <= 92) ||
+      est.ETAPA === "SELECAO_PERSONAGEM"
+    ) {
+      const mapaPersonagens = [
+        { chaves: ["mago", "maga"], estilo: "MAGO", faixa: 87 },
+        { chaves: ["duende"], estilo: "DUENDE", faixa: 88 },
+        { chaves: ["campones", "camponesa"], estilo: "CAMPONES", faixa: 89 },
+        { chaves: ["sabio", "sabia"], estilo: "SABIO", faixa: 90 },
+        { chaves: ["mercenario", "mercenaria"], estilo: "MERCENARIO", faixa: 91 },
+        { chaves: ["guerreiro", "guerreira"], estilo: "GUERREIRO", faixa: 92 },
+      ];
+
+      let charDetectado = null;
+      for (const item of mapaPersonagens) {
+        if (item.chaves.some((k) => fala.includes(k))) {
+          charDetectado = item;
+          break;
+        }
+      }
+
+      const querConfirmarDireto =
+        fala.includes("confirmar") ||
+        fala.includes("escolho") ||
+        fala.includes("quero esse") ||
+        fala.includes("quero ser") ||
+        fala.includes("comecar") ||
+        fala.includes("iniciar") ||
+        fala === "sim";
+
+      // Caso 1: Falou o nome do personagem junto com confirmação ("quero ser mago", "escolho mago")
+      if (charDetectado && querConfirmarDireto) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "AVENTURA";
+        est.ESTILO = charDetectado.estilo;
+        est.ULTIMO_AUDIO = 101;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [charDetectado.faixa, 93, 98, 99, 100, 101],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      // Caso 2: Falou apenas o nome do personagem (ex: "Mago") -> Toca a descrição (87)
+      if (charDetectado) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "SELECAO_PERSONAGEM";
+        est.ESTILO = charDetectado.estilo;
+        est.ULTIMO_AUDIO = charDetectado.faixa;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [charDetectado.faixa],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      // Caso 3: Já ouviu a descrição (87 a 92) e confirmou ("confirmar", "quero esse", "sim")
+      if (est.ULTIMO_AUDIO >= 87 && est.ULTIMO_AUDIO <= 92 && querConfirmarDireto) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "AVENTURA";
+        est.ULTIMO_AUDIO = 101;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [93, 98, 99, 100, 101],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "NENHUMA",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: montarEstado(est),
+      });
+    }
+
+    // ========================================================================
+    // 4. MENU PRINCIPAL (ULTIMO_AUDIO = 85)
     // ========================================================================
     if (est.ULTIMO_AUDIO === 85) {
       if (fala.includes("sumeria") || fala.includes("primeira")) {
@@ -257,90 +348,7 @@ Retorne APENAS este JSON:
         acao_sistema: "NENHUMA",
         transcricao: analise.transcricao,
         faixas: [],
-        novo_estado: estadoRaw,
-      });
-    }
-
-    // ========================================================================
-    // 4. SELEÇÃO DE PERSONAGENS DA SUMÉRIA (ULTIMO_AUDIO = 86 a 92)
-    // ========================================================================
-    if (est.ULTIMO_AUDIO >= 86 && est.ULTIMO_AUDIO <= 92) {
-      const mapaPersonagens = [
-        { chaves: ["mago", "maga"], estilo: "MAGO", faixa: 87 },
-        { chaves: ["duende"], estilo: "DUENDE", faixa: 88 },
-        { chaves: ["campones", "camponesa"], estilo: "CAMPONES", faixa: 89 },
-        { chaves: ["sabio", "sabia"], estilo: "SABIO", faixa: 90 },
-        { chaves: ["mercenario", "mercenaria"], estilo: "MERCENARIO", faixa: 91 },
-        { chaves: ["guerreiro", "guerreira"], estilo: "GUERREIRO", faixa: 92 },
-      ];
-
-      let charDetectado = null;
-      for (const item of mapaPersonagens) {
-        if (item.chaves.some((k) => fala.includes(k))) {
-          charDetectado = item;
-          break;
-        }
-      }
-
-      const querConfirmarDireto =
-        fala.includes("confirmar") ||
-        fala.includes("escolho") ||
-        fala.includes("quero esse") ||
-        fala.includes("quero ser") ||
-        fala.includes("comecar") ||
-        fala.includes("iniciar") ||
-        fala === "sim";
-
-      // Se falou o nome de um personagem + intenção de confirmar/iniciar direto
-      if (charDetectado && querConfirmarDireto) {
-        est.HISTORIA = "SUMERIA";
-        est.ETAPA = "AVENTURA";
-        est.ESTILO = charDetectado.estilo;
-        est.ULTIMO_AUDIO = 101;
-        return res.status(200).json({
-          ignorado: false,
-          acao_sistema: "NENHUMA",
-          transcricao: analise.transcricao,
-          faixas: [charDetectado.faixa, 93, 98, 99, 100, 101],
-          novo_estado: montarEstado(est),
-        });
-      }
-
-      // Se falou apenas o nome do personagem para ouvir a descrição (ex: "Mago")
-      if (charDetectado) {
-        est.HISTORIA = "SUMERIA";
-        est.ETAPA = "SELECAO_PERSONAGEM";
-        est.ESTILO = charDetectado.estilo;
-        est.ULTIMO_AUDIO = charDetectado.faixa;
-        return res.status(200).json({
-          ignorado: false,
-          acao_sistema: "NENHUMA",
-          transcricao: analise.transcricao,
-          faixas: [charDetectado.faixa],
-          novo_estado: montarEstado(est),
-        });
-      }
-
-      // Se já ouviu a descrição (87 a 92) e confirmou ("confirmar", "quero esse", "sim")
-      if (est.ULTIMO_AUDIO >= 87 && est.ULTIMO_AUDIO <= 92 && querConfirmarDireto) {
-        est.HISTORIA = "SUMERIA";
-        est.ETAPA = "AVENTURA";
-        est.ULTIMO_AUDIO = 101;
-        return res.status(200).json({
-          ignorado: false,
-          acao_sistema: "NENHUMA",
-          transcricao: analise.transcricao,
-          faixas: [93, 98, 99, 100, 101],
-          novo_estado: montarEstado(est),
-        });
-      }
-
-      return res.status(200).json({
-        ignorado: false,
-        acao_sistema: "NENHUMA",
-        transcricao: analise.transcricao,
-        faixas: [],
-        novo_estado: estadoRaw,
+        novo_estado: montarEstado(est),
       });
     }
 
@@ -351,9 +359,8 @@ Retorne APENAS este JSON:
       const opcoesPermitidasNaCena = OPCOES_VALIDAS_SUMERIA[est.ULTIMO_AUDIO] || [];
       const num = extrairNumeroFalado(analise.numero_dito, fala);
 
-      // Só avança se o número dito pertencer estritamente à pergunta atual!
       if (num !== null && opcoesPermitidasNaCena.includes(num)) {
-        const proximaFaixa = 100 + num; // Ex: na 107 disse 12 -> toca 112!
+        const proximaFaixa = 100 + num;
         est.ULTIMO_AUDIO = proximaFaixa;
         return res.status(200).json({
           ignorado: false,
@@ -364,13 +371,12 @@ Retorne APENAS este JSON:
         });
       }
 
-      // Qualquer outro número ou frase fora das opções da cena é bloqueado sem fazer nada
       return res.status(200).json({
         ignorado: false,
         acao_sistema: "NENHUMA",
         transcricao: analise.transcricao,
         faixas: [],
-        novo_estado: estadoRaw,
+        novo_estado: montarEstado(est),
       });
     }
 
@@ -393,7 +399,7 @@ Retorne APENAS este JSON:
       acao_sistema: "NENHUMA",
       transcricao: analise.transcricao,
       faixas: [],
-      novo_estado: estadoRaw,
+      novo_estado: montarEstado(est),
     });
   } catch (err) {
     return res.status(500).json({ erro: err.message });
