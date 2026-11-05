@@ -1,97 +1,82 @@
-// api/totem-angra.js (Com Trava Estrita por Cena em JavaScript + Sem Exemplo Viciado)
+// api/totem-angra.js (Transcrição Cega Antivício + Motor de Estados 100% Determinístico em JS)
 export const config = {
   api: { bodyParser: false },
 };
 
 // ============================================================================
-// TRAVA ESTRITA EM JAVASCRIPT: Lista exata de faixas que podem ser acionadas
-// a partir de cada ULTIMO_AUDIO. Se não estiver na lista da pergunta atual, é bloqueado!
+// TABELA ESTRITA DAS 33 AÇÕES DA SUMÉRIA (Fórmula: Número dito -> Faixa 100 + N)
+// O Gemini NÃO tem acesso a esta tabela para nunca forçar um número parecido!
 // ============================================================================
-const FAIXAS_PERMITIDAS_POR_AUDIO = {
-  // Menu Principal
-  85: [1, 2, 86],
-
-  // Seleção de Personagens da Suméria (86 = Menu, 87 a 92 = Descrições)
-  86: [87, 88, 89, 90, 91, 92, 93, 98, 99, 100, 101],
-  87: [87, 88, 89, 90, 91, 92, 93, 98, 99, 100, 101],
-  88: [87, 88, 89, 90, 91, 92, 93, 98, 99, 100, 101],
-  89: [87, 88, 89, 90, 91, 92, 93, 98, 99, 100, 101],
-  90: [87, 88, 89, 90, 91, 92, 93, 98, 99, 100, 101],
-  91: [87, 88, 89, 90, 91, 92, 93, 98, 99, 100, 101],
-  92: [87, 88, 89, 90, 91, 92, 93, 98, 99, 100, 101],
-
-  // As 33 Ações da Suméria (Cada pergunta SÓ aceita suas próprias respostas)
-  101: [107, 130, 116],       // Ação 1: só aceita 7, 30 ou 16
-  102: [117, 112],            // Ação 2: só aceita 17 ou 12
-  103: [128, 116],            // Ação 3: só aceita 28 ou 16
-  104: [130, 111],            // Ação 4: só aceita 30 ou 11
-  105: [121, 110],            // Ação 5: só aceita 21 ou 10
-  106: [114, 127],            // Ação 6: só aceita 14 ou 27
-  107: [119, 103, 123],       // Ação 7: só aceita 19, 3 ou 23
-  108: [120, 125],            // Ação 8: só aceita 20 ou 25
-  109: [85],                  // Fim de jogo
-  110: [133, 109],            // Ação 10: só aceita 33 ou 9
-  111: [85],                  // Fim de jogo
-  112: [126, 132],            // Ação 12: só aceita 26 ou 32
-  113: [115, 126],            // Ação 13: só aceita 15 ou 26
-  114: [113, 112],            // Ação 14: só aceita 13 ou 12
-  115: [85],                  // Fim de jogo
-  116: [104, 122],            // Ação 16: só aceita 4 ou 22
-  117: [85],                  // Fim de jogo
-  118: [131, 124],            // Ação 18: só aceita 31 ou 24
-  119: [129, 108, 105],       // Ação 19: só aceita 29, 8 ou 5
-  120: [85],                  // Fim de jogo
-  121: [85],                  // Fim de jogo
-  122: [118],                 // Ação 22: só aceita 18
-  123: [106, 127],            // Ação 23: só aceita 6 ou 27
-  124: [85],                  // Fim de jogo
-  125: [85],                  // Fim de jogo
-  126: [85],                  // Fim de jogo
-  127: [112, 132, 107],       // Ação 27: só aceita 12, 32 ou 7
-  128: [110],                 // Ação 28: só aceita 10
-  129: [108],                 // Ação 29: só aceita 8
-  130: [106, 127, 119, 123],  // Ação 30: só aceita 6, 27, 19 ou 23
-  131: [102, 124],            // Ação 31: só aceita 2 ou 24
-  132: [85],                  // Fim de jogo
-  133: [85],                  // Fim de jogo
-
-  // O Resgate do Príncipe Arthur (Faixas 2 a 84)
-  2:  [3, 71],
-  71: [72, 73],
-  72: [74, 83],
-  73: [74, 62],
-  74: [11, 12, 13, 62],
-  11: [75, 61],
-  12: [75, 62],
-  13: [75],
-  75: [76, 61],
-  76: [77, 65],
-  77: [78, 64],
-  78: [21, 22, 23, 63],
-  21: [79, 63],
-  22: [79, 64],
-  23: [79, 63],
-  79: [80, 65],
-  80: [81, 84],
-  81: [82, 65],
-  82: [31, 32, 62],
-  31: [34, 33, 65],
-  32: [42, 33, 62],
-  33: [42, 41, 63],
-  34: [41, 42, 65],
-  41: [51, 53, 66],
-  42: [51, 52, 66],
+const OPCOES_VALIDAS_SUMERIA = {
+  101: [7, 30, 16],
+  102: [17, 12],
+  103: [28, 16],
+  104: [30, 11],
+  105: [21, 10],
+  106: [14, 27],
+  107: [19, 3, 23],
+  108: [20, 25],
+  109: [], // Fim de jogo
+  110: [33, 9],
+  111: [], // Fim de jogo
+  112: [26, 32],
+  113: [15, 26],
+  114: [13, 12],
+  115: [], // Fim de jogo
+  116: [4, 22],
+  117: [], // Fim de jogo
+  118: [31, 24],
+  119: [29, 8, 5],
+  120: [], // Fim de jogo
+  121: [], // Fim de jogo
+  122: [18],
+  123: [6, 27],
+  124: [], // Fim de jogo
+  125: [], // Fim de jogo
+  126: [], // Fim de jogo
+  127: [12, 32, 7],
+  128: [10],
+  129: [8],
+  130: [6, 27, 19, 23],
+  131: [2, 24],
+  132: [], // Fim de jogo
+  133: [], // Fim de jogo
 };
 
-function extrairUltimoAudio(estadoStr) {
-  const match = estadoStr.match(/ULTIMO_AUDIO:(\d+)/);
-  return match ? parseInt(match[1], 10) : 85;
+function parseEstado(estadoStr) {
+  const partes = estadoStr.split("|").map((s) => s.trim());
+  const obj = {
+    HISTORIA: "MENU",
+    ETAPA: "MENU_PRINCIPAL",
+    ESTILO: "NENHUM",
+    ROTA: "MOINHO",
+    ULTIMO_AUDIO: 85,
+  };
+  for (const p of partes) {
+    const [k, v] = p.split(":");
+    if (k && v) {
+      obj[k.trim()] = k.trim() === "ULTIMO_AUDIO" ? parseInt(v.trim(), 10) : v.trim();
+    }
+  }
+  return obj;
+}
+
+function montarEstado(obj) {
+  return `HISTORIA:${obj.HISTORIA} | ETAPA:${obj.ETAPA} | ESTILO:${obj.ESTILO} | ROTA:${obj.ROTA} | ULTIMO_AUDIO:${obj.ULTIMO_AUDIO}`;
+}
+
+function normalizarTexto(str) {
+  return (str || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
 }
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Mestre de RPG Online - Trava Estrita por Pergunta Ativada!",
+      status: "Motor Determinístico RPG Online (Transcrição Cega Antialucinação)!",
     });
   }
 
@@ -101,10 +86,11 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY ausente");
 
-    const estadoAtual = decodeURIComponent(
-      req.headers["x-estado-rpg"] || "HISTORIA:MENU | ETAPA:MENU_PRINCIPAL | ESTILO:NENHUM | ROTA:MOINHO | ULTIMO_AUDIO:85"
+    const estadoRaw = decodeURIComponent(
+      req.headers["x-estado-rpg"] ||
+        "HISTORIA:MENU | ETAPA:MENU_PRINCIPAL | ESTILO:NENHUM | ROTA:MOINHO | ULTIMO_AUDIO:85"
     );
-    const ultimoAudioAtual = extrairUltimoAudio(estadoAtual);
+    const est = parseEstado(estadoRaw);
 
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -117,122 +103,30 @@ export default async function handler(req, res) {
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
     const urlGemini = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    const promptRPG = `
-Você é o Motor Lógico de um console de Histórias Interativas controlado por voz.
-ATENÇÃO: Você DEVE avaliar EXCLUSIVAMENTE a regra para o ULTIMO_AUDIO = ${ultimoAudioAtual}.
-Ignore todas as outras cenas que não sejam ULTIMO_AUDIO = ${ultimoAudioAtual}.
+    // ========================================================================
+    // PROMPT CEGO: A IA NÃO SABE QUAIS SÃO AS OPÇÕES VÁLIDAS DA CENA ATUAL!
+    // Assim ela NUNCA transforma "12" em "19" e NUNCA aceita batida de teclado.
+    // ========================================================================
+    const promptTranscricaoCega = `
+Você é um detector acústico forense e transcritor de voz humana em Português do Brasil.
+Você NÃO conhece as regras do jogo e NÃO deve adivinhar intenções.
 
-ESTADO ATUAL DO JOGADOR:
-"${estadoAtual}"
+TAREFA 1 - DETECÇÃO RIGOROSA DE VOZ HUMANA VS RUÍDO MECÂNICO:
+- Analise se há cordas vocais humanas falando claramente uma palavra ou número.
+- Se o áudio for batida de teclado, clique de mouse, toque na mesa, estalo seco, passo, tosse, pigarro, sopro no microfone, TV ao fundo, ruído branco ou silêncio, defina OBRIGATORIAMENTE "eh_voz_humana": false.
+- Sons curtos percussivos ("tec", "toc", "clic", batidas de teclas) NUNCA são voz humana.
 
-=====================================================================
-1. REGRA CONTRA RUÍDO E SILÊNCIO:
-=====================================================================
-- Se o áudio contiver apenas chiado, vento, chuva, batida, som de motor, eco ou silêncio sem fala humana nítida, retorne OBRIGATORIAMENTE: {"ignorado": true}.
+TAREFA 2 - TRANSCRIÇÃO LITERAL SEM CORREÇÃO:
+- Transcreva exatamente o que a voz humana disse em "transcricao".
+- Se a pessoa falou um número (ex: 1, 2, 3, 7, 10, 12, 15, 16, 19, 20, 23, 30, etc.), coloque esse número exato no campo "numero_dito" (inteiro). Se não falou número, coloque null.
+- NUNCA substitua um número por outro parecido (se ouvir "doze", escreva 12; se ouvir "dezenove", escreva 19; se ouvir "vinte", escreva 20).
 
-=====================================================================
-2. REGRA DE OURO: A RESPOSTA SÓ SERVE PARA A PERGUNTA ATUAL (ULTIMO_AUDIO = ${ultimoAudioAtual})
-=====================================================================
-- Verifique abaixo QUAIS são as únicas respostas aceitas para ULTIMO_AUDIO = ${ultimoAudioAtual}.
-- Se o que o jogador disse NÃO corresponder a nenhuma opção válida do ULTIMO_AUDIO = ${ultimoAudioAtual}, retorne OBRIGATORIAMENTE:
-  "faixas": [], "acao_sistema": "NENHUMA", e mantenha EXATAMENTE o mesmo "novo_estado": "${estadoAtual}".
-
-=====================================================================
-3. COMANDOS DE SISTEMA (Aceitos a qualquer momento):
-=====================================================================
-- "repetir", "repete", "não ouvi", "fala de novo" -> "acao_sistema": "REPETIR_ULTIMO", "faixas": [], "novo_estado": "${estadoAtual}"
-- "menu principal", "trocar história", "repetir apresentação" -> "acao_sistema": "REPETIR_APRESENTACAO", "faixas": [85], "novo_estado": "HISTORIA:MENU | ETAPA:MENU_PRINCIPAL | ESTILO:NENHUM | ROTA:MOINHO | ULTIMO_AUDIO:85"
-- "salvar jogo", "salvar progresso" -> "acao_sistema": "SALVAR_JOGO", "faixas": [], "novo_estado": "${estadoAtual}"
-- "continuar jogo", "carregar jogo" -> "acao_sistema": "CARREGAR_JOGO", "faixas": [], "novo_estado": "${estadoAtual}"
-- "reiniciar", "começar do zero" -> "acao_sistema": "NENHUMA", "faixas": [85], "novo_estado": "HISTORIA:MENU | ETAPA:MENU_PRINCIPAL | ESTILO:NENHUM | ROTA:MOINHO | ULTIMO_AUDIO:85"
-
-=====================================================================
-4. REGRAS DE TRANSIÇÃO POR ULTIMO_AUDIO:
-=====================================================================
-
-[SE ULTIMO_AUDIO = 85 (Menu Principal de Histórias)]
-- Dizer "Aventura na Suméria" / "Suméria" / "primeira história":
-  -> "faixas": [86], "novo_estado": "HISTORIA:SUMERIA | ETAPA:SELECAO_PERSONAGEM | ESTILO:NENHUM | ROTA:NENHUMA | ULTIMO_AUDIO:86"
-- Dizer "O Resgate do Príncipe Arthur" / "Príncipe Arthur" / "Arthur" / "segunda história":
-  -> "faixas": [1, 2], "novo_estado": "HISTORIA:ARTHUR | ETAPA:SELECAO | ESTILO:NENHUM | ROTA:MOINHO | ULTIMO_AUDIO:2"
-
-[SE ULTIMO_AUDIO = 86 (Menu de Personagens da Suméria)]
-- Se o jogador disser o nome de um personagem para ouvir sobre ele ("Mago", "Duende", "Camponês", "Sábio", "Mercenário", "Guerreiro"):
-  - "Mago" / "Maga" -> "faixas": [87], "novo_estado": "HISTORIA:SUMERIA | ETAPA:SELECAO_PERSONAGEM | ESTILO:MAGO | ROTA:NENHUMA | ULTIMO_AUDIO:87"
-  - "Duende" -> "faixas": [88], "novo_estado": "HISTORIA:SUMERIA | ETAPA:SELECAO_PERSONAGEM | ESTILO:DUENDE | ROTA:NENHUMA | ULTIMO_AUDIO:88"
-  - "Camponês" / "Camponesa" -> "faixas": [89], "novo_estado": "HISTORIA:SUMERIA | ETAPA:SELECAO_PERSONAGEM | ESTILO:CAMPONES | ROTA:NENHUMA | ULTIMO_AUDIO:89"
-  - "Sábio" / "Sábia" -> "faixas": [90], "novo_estado": "HISTORIA:SUMERIA | ETAPA:SELECAO_PERSONAGEM | ESTILO:SABIO | ROTA:NENHUMA | ULTIMO_AUDIO:90"
-  - "Mercenário" / "Mercenária" -> "faixas": [91], "novo_estado": "HISTORIA:SUMERIA | ETAPA:SELECAO_PERSONAGEM | ESTILO:MERCENARIO | ROTA:NENHUMA | ULTIMO_AUDIO:91"
-  - "Guerreiro" / "Guerreira" -> "faixas": [92], "novo_estado": "HISTORIA:SUMERIA | ETAPA:SELECAO_PERSONAGEM | ESTILO:GUERREIRO | ROTA:NENHUMA | ULTIMO_AUDIO:92"
-- Se o jogador disser explicitamente que JÁ QUER CONFIRMAR E INICIAR com aquele personagem ("confirmar mago", "quero começar com guerreiro"):
-  - Mago -> "faixas": [87, 93, 98, 99, 100, 101], "novo_estado": "HISTORIA:SUMERIA | ETAPA:AVENTURA | ESTILO:MAGO | ROTA:NENHUMA | ULTIMO_AUDIO:101"
-  - Duende -> "faixas": [88, 93, 98, 99, 100, 101], "novo_estado": "HISTORIA:SUMERIA | ETAPA:AVENTURA | ESTILO:DUENDE | ROTA:NENHUMA | ULTIMO_AUDIO:101"
-  - Camponês -> "faixas": [89, 93, 98, 99, 100, 101], "novo_estado": "HISTORIA:SUMERIA | ETAPA:AVENTURA | ESTILO:CAMPONES | ROTA:NENHUMA | ULTIMO_AUDIO:101"
-  - Sábio -> "faixas": [90, 93, 98, 99, 100, 101], "novo_estado": "HISTORIA:SUMERIA | ETAPA:AVENTURA | ESTILO:SABIO | ROTA:NENHUMA | ULTIMO_AUDIO:101"
-  - Mercenário -> "faixas": [91, 93, 98, 99, 100, 101], "novo_estado": "HISTORIA:SUMERIA | ETAPA:AVENTURA | ESTILO:MERCENARIO | ROTA:NENHUMA | ULTIMO_AUDIO:101"
-  - Guerreiro -> "faixas": [92, 93, 98, 99, 100, 101], "novo_estado": "HISTORIA:SUMERIA | ETAPA:AVENTURA | ESTILO:GUERREIRO | ROTA:NENHUMA | ULTIMO_AUDIO:101"
-- NOTA: NUNCA retorne a faixa 107 na seleção de personagem! O início da aventura é SEMPRE [93, 98, 99, 100, 101] com ULTIMO_AUDIO:101.
-
-[SE ULTIMO_AUDIO = 87, 88, 89, 90, 91 ou 92 (Acabou de ouvir a descrição de um personagem da Suméria)]
-- Se o jogador CONFIRMAR o personagem ("confirmar", "quero esse", "escolho esse", "sim", "começar"):
-  -> "faixas": [93, 98, 99, 100, 101], "novo_estado": "HISTORIA:SUMERIA | ETAPA:AVENTURA | ESTILO:<mantenha o atual> | ROTA:NENHUMA | ULTIMO_AUDIO:101"
-- Se o jogador pedir para ouvir OUTRO personagem ("Mago", "Duende", "Camponês", "Sábio", "Mercenário", "Guerreiro"):
-  -> Toque apenas a faixa da descrição correspondente ([87] a [92]) e atualize o ESTILO e ULTIMO_AUDIO (87 a 92).
-
-[AÇÕES DA AVENTURA NA SUMÉRIA - CADA PERGUNTA SÓ ACEITA SUAS PRÓPRIAS RESPOSTAS]
-- SE ULTIMO_AUDIO = 101: Aceita APENAS número 7 (-> faixas:[107], ULTIMO_AUDIO:107), número 30 (-> faixas:[130], ULTIMO_AUDIO:130) ou número 16 (-> faixas:[116], ULTIMO_AUDIO:116).
-- SE ULTIMO_AUDIO = 102: Aceita APENAS número 17 (-> faixas:[117], ULTIMO_AUDIO:117) ou número 12 (-> faixas:[112], ULTIMO_AUDIO:112).
-- SE ULTIMO_AUDIO = 103: Aceita APENAS número 28 (-> faixas:[128], ULTIMO_AUDIO:128) ou número 16 (-> faixas:[116], ULTIMO_AUDIO:116).
-- SE ULTIMO_AUDIO = 104: Aceita APENAS número 30 (-> faixas:[130], ULTIMO_AUDIO:130) ou número 11 (-> faixas:[111], ULTIMO_AUDIO:111).
-- SE ULTIMO_AUDIO = 105: Aceita APENAS número 21 (-> faixas:[121], ULTIMO_AUDIO:121) ou número 10 (-> faixas:[110], ULTIMO_AUDIO:110).
-- SE ULTIMO_AUDIO = 106: Aceita APENAS número 14 (-> faixas:[114], ULTIMO_AUDIO:114) ou número 27 (-> faixas:[127], ULTIMO_AUDIO:127).
-- SE ULTIMO_AUDIO = 107: Aceita APENAS número 19 (-> faixas:[119], ULTIMO_AUDIO:119), número 3 (-> faixas:[103], ULTIMO_AUDIO:103) ou número 23 (-> faixas:[123], ULTIMO_AUDIO:123).
-- SE ULTIMO_AUDIO = 108: Aceita APENAS número 20 (-> faixas:[120], ULTIMO_AUDIO:120) ou número 25 (-> faixas:[125], ULTIMO_AUDIO:125).
-- SE ULTIMO_AUDIO = 110: Aceita APENAS número 33 (-> faixas:[133], ULTIMO_AUDIO:133) ou número 9 (-> faixas:[109], ULTIMO_AUDIO:109).
-- SE ULTIMO_AUDIO = 112: Aceita APENAS número 26 (-> faixas:[126], ULTIMO_AUDIO:126) ou número 32 (-> faixas:[132], ULTIMO_AUDIO:132).
-- SE ULTIMO_AUDIO = 113: Aceita APENAS número 15 (-> faixas:[115], ULTIMO_AUDIO:115) ou número 26 (-> faixas:[126], ULTIMO_AUDIO:126).
-- SE ULTIMO_AUDIO = 114: Aceita APENAS número 13 (-> faixas:[113], ULTIMO_AUDIO:113) ou número 12 (-> faixas:[112], ULTIMO_AUDIO:112).
-- SE ULTIMO_AUDIO = 116: Aceita APENAS número 4 (-> faixas:[104], ULTIMO_AUDIO:104) ou número 22 (-> faixas:[122], ULTIMO_AUDIO:122).
-- SE ULTIMO_AUDIO = 118: Aceita APENAS número 31 (-> faixas:[131], ULTIMO_AUDIO:131) ou número 24 (-> faixas:[124], ULTIMO_AUDIO:124).
-- SE ULTIMO_AUDIO = 119: Aceita APENAS número 29 (-> faixas:[129], ULTIMO_AUDIO:129), número 8 (-> faixas:[108], ULTIMO_AUDIO:108) ou número 5 (-> faixas:[105], ULTIMO_AUDIO:105).
-- SE ULTIMO_AUDIO = 122: Aceita APENAS número 18 (-> faixas:[118], ULTIMO_AUDIO:118).
-- SE ULTIMO_AUDIO = 123: Aceita APENAS número 6 (-> faixas:[106], ULTIMO_AUDIO:106) ou número 27 (-> faixas:[127], ULTIMO_AUDIO:127).
-- SE ULTIMO_AUDIO = 127: Aceita APENAS número 12 (-> faixas:[112], ULTIMO_AUDIO:112), número 32 (-> faixas:[132], ULTIMO_AUDIO:132) ou número 7 (-> faixas:[107], ULTIMO_AUDIO:107).
-- SE ULTIMO_AUDIO = 128: Aceita APENAS número 10 (-> faixas:[110], ULTIMO_AUDIO:110).
-- SE ULTIMO_AUDIO = 129: Aceita APENAS número 8 (-> faixas:[108], ULTIMO_AUDIO:108).
-- SE ULTIMO_AUDIO = 130: Aceita APENAS número 6 (-> faixas:[106], ULTIMO_AUDIO:106), número 27 (-> faixas:[127], ULTIMO_AUDIO:127), número 19 (-> faixas:[119], ULTIMO_AUDIO:119) ou número 23 (-> faixas:[123], ULTIMO_AUDIO:123).
-- SE ULTIMO_AUDIO = 131: Aceita APENAS número 2 (-> faixas:[102], ULTIMO_AUDIO:102) ou número 24 (-> faixas:[124], ULTIMO_AUDIO:124).
-- SE ULTIMO_AUDIO = 109, 111, 115, 117, 120, 121, 124, 125, 126, 132, 133: Fim de jogo (só aceita reiniciar ou menu principal -> faixas:[85], ULTIMO_AUDIO:85).
-
-[O RESGATE DO PRÍNCIPE ARTHUR - FAIXAS 2 A 84]
-- SE ULTIMO_AUDIO = 2: 1ª/Guardião (ESTILO:GUARDIAO), 2ª/Explorador (ESTILO:EXPLORADOR), 3ª/Estrategista (ESTILO:ESTRATEGISTA). Se confirmar/iniciar -> "faixas": [3, 71], ULTIMO_AUDIO:71.
-- SE ULTIMO_AUDIO = 71: 1ª -> [72] (ULTIMO_AUDIO:72) | 2ª ou 3ª -> [73] (ULTIMO_AUDIO:73).
-- SE ULTIMO_AUDIO = 72: 1ª ou 2ª -> [74] (ULTIMO_AUDIO:74) | 3ª -> [83] (ULTIMO_AUDIO:83).
-- SE ULTIMO_AUDIO = 73: 1ª ou 2ª -> [74] (ULTIMO_AUDIO:74) | 3ª -> [62] (ULTIMO_AUDIO:62).
-- SE ULTIMO_AUDIO = 74: 1ª ou 2ª -> (GUARDIAO:[11], EXPLORADOR:[12], ESTRATEGISTA:[13]) | 3ª -> [62] (ULTIMO_AUDIO:62).
-- SE ULTIMO_AUDIO = 11: 1ª -> [75] (ROTA:MOINHO, ULTIMO_AUDIO:75) | 2ª -> [61] (ULTIMO_AUDIO:61) | 3ª -> [75] (ROTA:PONTE, ULTIMO_AUDIO:75).
-- SE ULTIMO_AUDIO = 12: 1ª -> [75] (ROTA:MOINHO, ULTIMO_AUDIO:75) | 2ª -> [75] (ROTA:PONTE, ULTIMO_AUDIO:75) | 3ª -> [62] (ULTIMO_AUDIO:62).
-- SE ULTIMO_AUDIO = 13: 1ª -> [75] (ROTA:MOINHO, ULTIMO_AUDIO:75) | 2ª -> [75] (ROTA:PONTE, ULTIMO_AUDIO:75) | 3ª -> [75] (ROTA:ROCHAS, ULTIMO_AUDIO:75).
-- SE ULTIMO_AUDIO = 75: 1ª ou 2ª -> [76] (ULTIMO_AUDIO:76) | 3ª -> [61] (ULTIMO_AUDIO:61).
-- SE ULTIMO_AUDIO = 76: 1ª ou 2ª -> [77] (ULTIMO_AUDIO:77) | 3ª -> [65] (ULTIMO_AUDIO:65).
-- SE ULTIMO_AUDIO = 77: 1ª ou 2ª -> [78] (ULTIMO_AUDIO:78) | 3ª -> [64] (ULTIMO_AUDIO:64).
-- SE ULTIMO_AUDIO = 78: 1ª ou 2ª -> (MOINHO:[21], PONTE:[22], ROCHAS:[23]) | 3ª -> [63] (ULTIMO_AUDIO:63).
-- SE ULTIMO_AUDIO = 21: 1ª ou 2ª -> [79] (ULTIMO_AUDIO:79) | 3ª -> [63] (ULTIMO_AUDIO:63).
-- SE ULTIMO_AUDIO = 22: 1ª ou 2ª -> [79] (ULTIMO_AUDIO:79) | 3ª -> [64] (ULTIMO_AUDIO:64).
-- SE ULTIMO_AUDIO = 23: 1ª ou 2ª -> [79] (ULTIMO_AUDIO:79) | 3ª -> [63] (ULTIMO_AUDIO:63).
-- SE ULTIMO_AUDIO = 79: 1ª ou 2ª -> [80] (ULTIMO_AUDIO:80) | 3ª -> [65] (ULTIMO_AUDIO:65).
-- SE ULTIMO_AUDIO = 80: 1ª ou 2ª -> [81] (ULTIMO_AUDIO:81) | 3ª -> [84] (ULTIMO_AUDIO:84).
-- SE ULTIMO_AUDIO = 81: 1ª ou 2ª -> [82] (ULTIMO_AUDIO:82) | 3ª -> [65] (ULTIMO_AUDIO:65).
-- SE ULTIMO_AUDIO = 82: 1ª -> [31] (ULTIMO_AUDIO:31) | 2ª -> [32] (ULTIMO_AUDIO:32) | 3ª -> [62] (ULTIMO_AUDIO:62).
-- SE ULTIMO_AUDIO = 31: 1ª -> [34] (ULTIMO_AUDIO:34) | 2ª -> [33] (ULTIMO_AUDIO:33) | 3ª -> [65] (ULTIMO_AUDIO:65).
-- SE ULTIMO_AUDIO = 32: 1ª -> [42] (ULTIMO_AUDIO:42) | 2ª -> [33] (ULTIMO_AUDIO:33) | 3ª -> [62] (ULTIMO_AUDIO:62).
-- SE ULTIMO_AUDIO = 33: 1ª -> [42] (ULTIMO_AUDIO:42) | 2ª -> [41] (ULTIMO_AUDIO:41) | 3ª -> [63] (ULTIMO_AUDIO:63).
-- SE ULTIMO_AUDIO = 34: 1ª -> [41] (ULTIMO_AUDIO:41) | 2ª -> [42] (ULTIMO_AUDIO:42) | 3ª -> [65] (ULTIMO_AUDIO:65).
-- SE ULTIMO_AUDIO = 41: 1ª -> [51] (ULTIMO_AUDIO:51) | 2ª -> [53] (ULTIMO_AUDIO:53) | 3ª -> [66] (ULTIMO_AUDIO:66).
-- SE ULTIMO_AUDIO = 42: 1ª -> [51] (ULTIMO_AUDIO:51) | 2ª -> [52] (ULTIMO_AUDIO:52) | 3ª -> [66] (ULTIMO_AUDIO:66).
-
-Retorne APENAS um objeto JSON válido com as chaves:
-"ignorado" (boolean), "acao_sistema" (string), "transcricao" (string), "faixas" (array de inteiros), "novo_estado" (string).`;
+Retorne APENAS este JSON:
+{
+  "eh_voz_humana": true,
+  "transcricao": "texto exato falado",
+  "numero_dito": null
+}`;
 
     const resGemini = await fetch(urlGemini, {
       method: "POST",
@@ -243,7 +137,7 @@ Retorne APENAS um objeto JSON válido com as chaves:
             role: "user",
             parts: [
               { inlineData: { mimeType: "audio/wav", data: wavBuffer.toString("base64") } },
-              { text: promptRPG },
+              { text: promptTranscricaoCega },
             ],
           },
         ],
@@ -257,44 +151,358 @@ Retorne APENAS um objeto JSON válido com as chaves:
 
     const data = await resGemini.json();
     const textoJson = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    let respostaObj;
+    let analise;
 
     try {
-      respostaObj = JSON.parse(textoJson);
+      analise = JSON.parse(textoJson);
     } catch {
       return res.status(200).json({ ignorado: true });
     }
 
-    // ========================================================================
-    // VALIDAÇÃO RÍGIDA NO BACKEND (BLOQUEIA QUALQUER FAIXA FORA DA PERGUNTA ATUAL)
-    // ========================================================================
-    if (
-      !respostaObj.ignorado &&
-      (!respostaObj.acao_sistema || respostaObj.acao_sistema === "NENHUMA") &&
-      Array.isArray(respostaObj.faixas) &&
-      respostaObj.faixas.length > 0
-    ) {
-      const permitidas = FAIXAS_PERMITIDAS_POR_AUDIO[ultimoAudioAtual] || [85];
+    const fala = normalizarTexto(analise.transcricao);
 
-      // Se for um comando explícito de reiniciar voltando ao menu 85, permite
-      const ehReinicioMenu =
-        respostaObj.faixas.length === 1 && respostaObj.faixas[0] === 85;
-
-      const todasFaixasValidas =
-        ehReinicioMenu ||
-        respostaObj.faixas.every((faixa) => permitidas.includes(faixa));
-
-      if (!todasFaixasValidas) {
-        // Bloqueia na hora! Zera as faixas e mantém exatamente o estado anterior
-        respostaObj.faixas = [];
-        respostaObj.novo_estado = estadoAtual;
-      }
+    // 1. Bloqueio imediato se não for voz humana nítida ou se a transcrição for vazia
+    if (!analise.eh_voz_humana || !fala || fala.length < 2) {
+      return res.status(200).json({ ignorado: true });
     }
 
-    return res.status(200).json(respostaObj);
+    // ========================================================================
+    // 2. COMANDOS GLOBAIS DE SISTEMA (Verificados em código JS)
+    // ========================================================================
+    if (fala.includes("repetir apresentacao") || fala.includes("menu principal") || fala.includes("trocar historia")) {
+      const novoEst = { HISTORIA: "MENU", ETAPA: "MENU_PRINCIPAL", ESTILO: "NENHUM", ROTA: "MOINHO", ULTIMO_AUDIO: 85 };
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "REPETIR_APRESENTACAO",
+        transcricao: analise.transcricao,
+        faixas: [85],
+        novo_estado: montarEstado(novoEst),
+      });
+    }
+
+    if (fala.includes("repetir") || fala.includes("repete") || fala.includes("nao ouvi") || fala.includes("fala de novo")) {
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "REPETIR_ULTIMO",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: estadoRaw,
+      });
+    }
+
+    if (fala.includes("salvar jogo") || fala.includes("salvar progresso") || fala.includes("guardar jogo")) {
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "SALVAR_JOGO",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: estadoRaw,
+      });
+    }
+
+    if (fala.includes("continuar jogo") || fala.includes("carregar jogo") || fala.includes("abrir jogo")) {
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "CARREGAR_JOGO",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: estadoRaw,
+      });
+    }
+
+    if (fala.includes("reiniciar") || fala.includes("comecar do zero") || fala.includes("jogar novamente")) {
+      const novoEst = { HISTORIA: "MENU", ETAPA: "MENU_PRINCIPAL", ESTILO: "NENHUM", ROTA: "MOINHO", ULTIMO_AUDIO: 85 };
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "NENHUMA",
+        transcricao: analise.transcricao,
+        faixas: [85],
+        novo_estado: montarEstado(novoEst),
+      });
+    }
+
+    // ========================================================================
+    // 3. MENU PRINCIPAL (ULTIMO_AUDIO = 85)
+    // ========================================================================
+    if (est.ULTIMO_AUDIO === 85) {
+      if (fala.includes("sumeria") || fala.includes("primeira")) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "SELECAO_PERSONAGEM";
+        est.ESTILO = "NENHUM";
+        est.ROTA = "NENHUMA";
+        est.ULTIMO_AUDIO = 86;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [86],
+          novo_estado: montarEstado(est),
+        });
+      }
+      if (fala.includes("arthur") || fala.includes("principe") || fala.includes("resgate") || fala.includes("segunda")) {
+        est.HISTORIA = "ARTHUR";
+        est.ETAPA = "SELECAO";
+        est.ESTILO = "NENHUM";
+        est.ROTA = "MOINHO";
+        est.ULTIMO_AUDIO = 2;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [1, 2],
+          novo_estado: montarEstado(est),
+        });
+      }
+      // Qualquer outra fala no menu 85 é bloqueada
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "NENHUMA",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: estadoRaw,
+      });
+    }
+
+    // ========================================================================
+    // 4. SELEÇÃO DE PERSONAGENS DA SUMÉRIA (ULTIMO_AUDIO = 86 a 92)
+    // ========================================================================
+    if (est.ULTIMO_AUDIO >= 86 && est.ULTIMO_AUDIO <= 92) {
+      const mapaPersonagens = [
+        { chaves: ["mago", "maga"], estilo: "MAGO", faixa: 87 },
+        { chaves: ["duende"], estilo: "DUENDE", faixa: 88 },
+        { chaves: ["campones", "camponesa"], estilo: "CAMPONES", faixa: 89 },
+        { chaves: ["sabio", "sabia"], estilo: "SABIO", faixa: 90 },
+        { chaves: ["mercenario", "mercenaria"], estilo: "MERCENARIO", faixa: 91 },
+        { chaves: ["guerreiro", "guerreira"], estilo: "GUERREIRO", faixa: 92 },
+      ];
+
+      let charDetectado = null;
+      for (const item of mapaPersonagens) {
+        if (item.chaves.some((k) => fala.includes(k))) {
+          charDetectado = item;
+          break;
+        }
+      }
+
+      const querConfirmarDireto =
+        fala.includes("confirmar") ||
+        fala.includes("escolho") ||
+        fala.includes("quero esse") ||
+        fala.includes("quero ser") ||
+        fala.includes("comecar") ||
+        fala.includes("iniciar") ||
+        fala === "sim";
+
+      // Se falou o nome de um personagem + intenção de confirmar/iniciar direto
+      if (charDetectado && querConfirmarDireto) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "AVENTURA";
+        est.ESTILO = charDetectado.estilo;
+        est.ULTIMO_AUDIO = 101;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [charDetectado.faixa, 93, 98, 99, 100, 101],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      // Se falou apenas o nome do personagem para ouvir a descrição (ex: "Mago")
+      if (charDetectado) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "SELECAO_PERSONAGEM";
+        est.ESTILO = charDetectado.estilo;
+        est.ULTIMO_AUDIO = charDetectado.faixa;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [charDetectado.faixa],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      // Se já ouviu a descrição (87 a 92) e confirmou ("confirmar", "quero esse", "sim")
+      if (est.ULTIMO_AUDIO >= 87 && est.ULTIMO_AUDIO <= 92 && querConfirmarDireto) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "AVENTURA";
+        est.ULTIMO_AUDIO = 101;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [93, 98, 99, 100, 101],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      // Qualquer outra frase ou número dito na seleção de personagens é ignorado
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "NENHUMA",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: estadoRaw,
+      });
+    }
+
+    // ========================================================================
+    // 5. MOTOR DETERMINÍSTICO DAS 33 AÇÕES DA SUMÉRIA (ULTIMO_AUDIO = 101 a 133)
+    // ========================================================================
+    if (est.ULTIMO_AUDIO >= 101 && est.ULTIMO_AUDIO <= 133) {
+      const opcoesPermitidasNaCena = OPCOES_VALIDAS_SUMERIA[est.ULTIMO_AUDIO] || [];
+      const num = extrairNumeroFalado(analise.numero_dito, fala);
+
+      // TRAVA ABSOLUTA: Só avança se o jogador falou um número E ele está na lista exata da cena atual!
+      if (num !== null && opcoesPermitidasNaCena.includes(num)) {
+        const proximaFaixa = 100 + num; // Ex: disse 19 -> faixa 119! Nunca tocará 109 por engano!
+        est.ULTIMO_AUDIO = proximaFaixa;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [proximaFaixa],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      // Se disse 12 quando a cena pedia 19, 3 ou 23 (ou se não disse número válido): NÃO FAZ NADA!
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "NENHUMA",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: estadoRaw,
+      });
+    }
+
+    // ========================================================================
+    // 6. CAMPANHA: O RESGATE DO PRÍNCIPE ARTHUR (ULTIMO_AUDIO = 2 a 84)
+    // ========================================================================
+    const resultadoArthur = processarPrincipeArthur(est, fala);
+    if (resultadoArthur) {
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "NENHUMA",
+        transcricao: analise.transcricao,
+        faixas: resultadoArthur.faixas,
+        novo_estado: montarEstado(resultadoArthur.novoEst),
+      });
+    }
+
+    return res.status(200).json({
+      ignorado: false,
+      acao_sistema: "NENHUMA",
+      transcricao: analise.transcricao,
+      faixas: [],
+      novo_estado: estadoRaw,
+    });
   } catch (err) {
     return res.status(500).json({ erro: err.message });
   }
+}
+
+// Extrai número exato sem permitir aproximações
+function extrairNumeroFalado(numeroJson, fala) {
+  if (typeof numeroJson === "number" && Number.isInteger(numeroJson)) {
+    return numeroJson;
+  }
+  const matchDigito = fala.match(/\b(\d{1,2})\b/);
+  if (matchDigito) return parseInt(matchDigito[1], 10);
+
+  const extenso = {
+    um: 1, dois: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9,
+    dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15,
+    dezesseis: 16, dezessete: 17, dezoito: 18, dezenove: 19, vinte: 20,
+    "vinte e um": 21, "vinte e dois": 22, "vinte e tres": 23, "vinte e quatro": 24,
+    "vinte e cinco": 25, "vinte e seis": 26, "vinte e sete": 27, "vinte e oito": 28,
+    "vinte e nove": 29, trinta: 30, "trinta e um": 31, "trinta e dois": 32, "trinta e tres": 33,
+  };
+  // Testa primeiro os compostos ("vinte e tres") e depois os simples
+  const chavesOrdenadas = Object.keys(extenso).sort((a, b) => b.length - a.length);
+  for (const chave of chavesOrdenadas) {
+    const regex = new RegExp(`\\b${chave}\\b`, "i");
+    if (regex.test(fala)) return extenso[chave];
+  }
+  return null;
+}
+
+function identificarOpcaoArthur(fala) {
+  if (fala.includes("primeira") || fala.includes("opcao 1") || fala.includes("numero 1") || /\b1\b/.test(fala)) return 1;
+  if (fala.includes("segunda") || fala.includes("opcao 2") || fala.includes("numero 2") || /\b2\b/.test(fala)) return 2;
+  if (fala.includes("terceira") || fala.includes("opcao 3") || fala.includes("numero 3") || /\b3\b/.test(fala)) return 3;
+  return null;
+}
+
+function processarPrincipeArthur(est, fala) {
+  const u = est.ULTIMO_AUDIO;
+  const op = identificarOpcaoArthur(fala);
+
+  if (u === 2) {
+    if (fala.includes("guardiao") || fala.includes("escudo") || op === 1) est.ESTILO = "GUARDIAO";
+    else if (fala.includes("explorador") || fala.includes("arco") || op === 2) est.ESTILO = "EXPLORADOR";
+    else if (fala.includes("estrategista") || fala.includes("espada") || op === 3) est.ESTILO = "ESTRATEGISTA";
+
+    if (fala.includes("finalizada") || fala.includes("confirmar") || fala.includes("iniciar") || fala.includes("comecar")) {
+      if (est.ESTILO === "NENHUM") est.ESTILO = "GUARDIAO";
+      est.ETAPA = "FLORESTA";
+      est.ULTIMO_AUDIO = 71;
+      return { faixas: [3, 71], novoEst: est };
+    }
+    return { faixas: [], novoEst: est };
+  }
+
+  if (!op) return null; // Exige 1ª, 2ª ou 3ª opção claramente dita
+
+  const mapaArthur = {
+    71: { 1: 72, 2: 73, 3: 73 },
+    72: { 1: 74, 2: 74, 3: 83 },
+    73: { 1: 74, 2: 74, 3: 62 },
+    74: {
+      1: est.ESTILO === "EXPLORADOR" ? 12 : est.ESTILO === "ESTRATEGISTA" ? 13 : 11,
+      2: est.ESTILO === "EXPLORADOR" ? 12 : est.ESTILO === "ESTRATEGISTA" ? 13 : 11,
+      3: 62,
+    },
+    11: { 1: 75, 2: 61, 3: 75 },
+    12: { 1: 75, 2: 75, 3: 62 },
+    13: { 1: 75, 2: 75, 3: 75 },
+    75: { 1: 76, 2: 76, 3: 61 },
+    76: { 1: 77, 2: 77, 3: 65 },
+    77: { 1: 78, 2: 78, 3: 64 },
+    78: {
+      1: est.ROTA === "PONTE" ? 22 : est.ROTA === "ROCHAS" ? 23 : 21,
+      2: est.ROTA === "PONTE" ? 22 : est.ROTA === "ROCHAS" ? 23 : 21,
+      3: 63,
+    },
+    21: { 1: 79, 2: 79, 3: 63 },
+    22: { 1: 79, 2: 79, 3: 64 },
+    23: { 1: 79, 2: 79, 3: 63 },
+    79: { 1: 80, 2: 80, 3: 65 },
+    80: { 1: 81, 2: 81, 3: 84 },
+    81: { 1: 82, 2: 82, 3: 65 },
+    82: { 1: 31, 2: 32, 3: 62 },
+    31: { 1: 34, 2: 33, 3: 65 },
+    32: { 1: 42, 2: 33, 3: 62 },
+    33: { 1: 42, 2: 41, 3: 63 },
+    34: { 1: 41, 2: 42, 3: 65 },
+    41: { 1: 51, 2: 53, 3: 66 },
+    42: { 1: 51, 2: 52, 3: 66 },
+  };
+
+  if (u === 11 && op === 1) est.ROTA = "MOINHO";
+  if (u === 11 && op === 3) est.ROTA = "PONTE";
+  if (u === 12 && op === 1) est.ROTA = "MOINHO";
+  if (u === 12 && op === 2) est.ROTA = "PONTE";
+  if (u === 13 && op === 1) est.ROTA = "MOINHO";
+  if (u === 13 && op === 2) est.ROTA = "PONTE";
+  if (u === 13 && op === 3) est.ROTA = "ROCHAS";
+
+  const prox = mapaArthur[u]?.[op];
+  if (!prox) return null;
+
+  est.ULTIMO_AUDIO = prox;
+  return { faixas: [prox], novoEst: est };
 }
 
 function adicionarCabecalhoWav(pcm, sampleRate) {
