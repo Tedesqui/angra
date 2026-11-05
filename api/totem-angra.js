@@ -1,46 +1,46 @@
-// api/totem-angra.js (Transcrição Cega Antivício + Motor de Estados 100% Determinístico em JS)
+// api/totem-angra.js (Tabela Oficial da Suméria Corrigida + Transcrição Cega Antirruído)
 export const config = {
   api: { bodyParser: false },
 };
 
 // ============================================================================
-// TABELA ESTRITA DAS 33 AÇÕES DA SUMÉRIA (Fórmula: Número dito -> Faixa 100 + N)
-// O Gemini NÃO tem acesso a esta tabela para nunca forçar um número parecido!
+// TABELA OFICIAL E ESTRITA DAS 33 AÇÕES DA SUMÉRIA (101 a 133)
+// Fórmula automática no código: Número dito N -> Toca a faixa (100 + N)
 // ============================================================================
 const OPCOES_VALIDAS_SUMERIA = {
-  101: [7, 30, 16],
-  102: [17, 12],
-  103: [28, 16],
-  104: [30, 11],
-  105: [21, 10],
-  106: [14, 27],
-  107: [19, 3, 23],
-  108: [20, 25],
-  109: [], // Fim de jogo
-  110: [33, 9],
-  111: [], // Fim de jogo
-  112: [26, 32],
-  113: [15, 26],
-  114: [13, 12],
-  115: [], // Fim de jogo
-  116: [4, 22],
-  117: [], // Fim de jogo
-  118: [31, 24],
-  119: [29, 8, 5],
-  120: [], // Fim de jogo
-  121: [], // Fim de jogo
-  122: [18],
-  123: [6, 27],
-  124: [], // Fim de jogo
-  125: [], // Fim de jogo
-  126: [], // Fim de jogo
-  127: [12, 32, 7],
-  128: [10],
-  129: [8],
-  130: [6, 27, 19, 23],
-  131: [2, 24],
-  132: [], // Fim de jogo
-  133: [], // Fim de jogo
+  101: [7, 30, 16],     // Ação 1
+  102: [],              // Ação 2: Fim de jogo
+  103: [13, 20],        // Ação 3
+  104: [13, 20],        // Ação 4
+  105: [10, 28],        // Ação 5
+  106: [21, 17, 2],     // Ação 6
+  107: [12, 25],        // Ação 7 (Corrigido: aceita 12 -> 112 ou 25 -> 125)
+  108: [],              // Ação 8: Fim de jogo
+  109: [],              // Ação 9: Fim de jogo
+  110: [19, 32],        // Ação 10
+  111: [18, 23],        // Ação 11
+  112: [15, 22, 4],     // Ação 12
+  113: [],              // Ação 13: Fim de jogo
+  114: [2, 8, 27],      // Ação 14
+  115: [29, 5],         // Ação 15
+  116: [27, 8],         // Ação 16
+  117: [],              // Ação 17: Fim de jogo
+  118: [9, 23, 26],     // Ação 18
+  119: [2, 32, 14],     // Ação 19
+  120: [9, 17],         // Ação 20
+  121: [],              // Ação 21: Fim de jogo
+  122: [24, 31],        // Ação 22
+  123: [],              // Ação 23: Fim de jogo
+  124: [],              // Ação 24: Fim de jogo
+  125: [21, 17],        // Ação 25
+  126: [33, 17],        // Ação 26
+  127: [],              // Ação 27: Fim de jogo
+  128: [11, 23],        // Ação 28
+  129: [3, 8],          // Ação 29
+  130: [6, 27],         // Ação 30
+  131: [2, 24],         // Ação 31
+  132: [],              // Ação 32: Fim de jogo
+  133: [],              // Ação 33: Fim de jogo
 };
 
 function parseEstado(estadoStr) {
@@ -76,7 +76,7 @@ function normalizarTexto(str) {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Motor Determinístico RPG Online (Transcrição Cega Antialucinação)!",
+      status: "Motor Determinístico RPG Online - Tabela Oficial da Suméria Ativa!",
     });
   }
 
@@ -104,8 +104,7 @@ export default async function handler(req, res) {
     const urlGemini = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     // ========================================================================
-    // PROMPT CEGO: A IA NÃO SABE QUAIS SÃO AS OPÇÕES VÁLIDAS DA CENA ATUAL!
-    // Assim ela NUNCA transforma "12" em "19" e NUNCA aceita batida de teclado.
+    // PROMPT CEGO: A IA NÃO VÊ AS OPÇÕES DA CENA PARA NUNCA FORÇAR UM NÚMERO
     // ========================================================================
     const promptTranscricaoCega = `
 Você é um detector acústico forense e transcritor de voz humana em Português do Brasil.
@@ -113,13 +112,13 @@ Você NÃO conhece as regras do jogo e NÃO deve adivinhar intenções.
 
 TAREFA 1 - DETECÇÃO RIGOROSA DE VOZ HUMANA VS RUÍDO MECÂNICO:
 - Analise se há cordas vocais humanas falando claramente uma palavra ou número.
-- Se o áudio for batida de teclado, clique de mouse, toque na mesa, estalo seco, passo, tosse, pigarro, sopro no microfone, TV ao fundo, ruído branco ou silêncio, defina OBRIGATORIAMENTE "eh_voz_humana": false.
+- Se o áudio for batida de teclado, clique de mouse, toque na mesa, estalo seco, passo, tosse, pigarro, sopro no microfone, ruído branco ou silêncio, defina OBRIGATORIAMENTE "eh_voz_humana": false.
 - Sons curtos percussivos ("tec", "toc", "clic", batidas de teclas) NUNCA são voz humana.
 
 TAREFA 2 - TRANSCRIÇÃO LITERAL SEM CORREÇÃO:
 - Transcreva exatamente o que a voz humana disse em "transcricao".
-- Se a pessoa falou um número (ex: 1, 2, 3, 7, 10, 12, 15, 16, 19, 20, 23, 30, etc.), coloque esse número exato no campo "numero_dito" (inteiro). Se não falou número, coloque null.
-- NUNCA substitua um número por outro parecido (se ouvir "doze", escreva 12; se ouvir "dezenove", escreva 19; se ouvir "vinte", escreva 20).
+- Se a pessoa falou um número (de 1 a 33), coloque esse número exato no campo "numero_dito" (inteiro). Se não falou número, coloque null.
+- NUNCA substitua um número por outro parecido (se ouvir "doze", escreva 12; se ouvir "vinte e cinco", escreva 25).
 
 Retorne APENAS este JSON:
 {
@@ -167,7 +166,7 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 2. COMANDOS GLOBAIS DE SISTEMA (Verificados em código JS)
+    // 2. COMANDOS GLOBAIS DE SISTEMA
     // ========================================================================
     if (fala.includes("repetir apresentacao") || fala.includes("menu principal") || fala.includes("trocar historia")) {
       const novoEst = { HISTORIA: "MENU", ETAPA: "MENU_PRINCIPAL", ESTILO: "NENHUM", ROTA: "MOINHO", ULTIMO_AUDIO: 85 };
@@ -253,7 +252,6 @@ Retorne APENAS este JSON:
           novo_estado: montarEstado(est),
         });
       }
-      // Qualquer outra fala no menu 85 é bloqueada
       return res.status(200).json({
         ignorado: false,
         acao_sistema: "NENHUMA",
@@ -337,7 +335,6 @@ Retorne APENAS este JSON:
         });
       }
 
-      // Qualquer outra frase ou número dito na seleção de personagens é ignorado
       return res.status(200).json({
         ignorado: false,
         acao_sistema: "NENHUMA",
@@ -354,9 +351,9 @@ Retorne APENAS este JSON:
       const opcoesPermitidasNaCena = OPCOES_VALIDAS_SUMERIA[est.ULTIMO_AUDIO] || [];
       const num = extrairNumeroFalado(analise.numero_dito, fala);
 
-      // TRAVA ABSOLUTA: Só avança se o jogador falou um número E ele está na lista exata da cena atual!
+      // Só avança se o número dito pertencer estritamente à pergunta atual!
       if (num !== null && opcoesPermitidasNaCena.includes(num)) {
-        const proximaFaixa = 100 + num; // Ex: disse 19 -> faixa 119! Nunca tocará 109 por engano!
+        const proximaFaixa = 100 + num; // Ex: na 107 disse 12 -> toca 112!
         est.ULTIMO_AUDIO = proximaFaixa;
         return res.status(200).json({
           ignorado: false,
@@ -367,7 +364,7 @@ Retorne APENAS este JSON:
         });
       }
 
-      // Se disse 12 quando a cena pedia 19, 3 ou 23 (ou se não disse número válido): NÃO FAZ NADA!
+      // Qualquer outro número ou frase fora das opções da cena é bloqueado sem fazer nada
       return res.status(200).json({
         ignorado: false,
         acao_sistema: "NENHUMA",
@@ -403,7 +400,6 @@ Retorne APENAS este JSON:
   }
 }
 
-// Extrai número exato sem permitir aproximações
 function extrairNumeroFalado(numeroJson, fala) {
   if (typeof numeroJson === "number" && Number.isInteger(numeroJson)) {
     return numeroJson;
@@ -419,7 +415,6 @@ function extrairNumeroFalado(numeroJson, fala) {
     "vinte e cinco": 25, "vinte e seis": 26, "vinte e sete": 27, "vinte e oito": 28,
     "vinte e nove": 29, trinta: 30, "trinta e um": 31, "trinta e dois": 32, "trinta e tres": 33,
   };
-  // Testa primeiro os compostos ("vinte e tres") e depois os simples
   const chavesOrdenadas = Object.keys(extenso).sort((a, b) => b.length - a.length);
   for (const chave of chavesOrdenadas) {
     const regex = new RegExp(`\\b${chave}\\b`, "i");
@@ -453,7 +448,7 @@ function processarPrincipeArthur(est, fala) {
     return { faixas: [], novoEst: est };
   }
 
-  if (!op) return null; // Exige 1ª, 2ª ou 3ª opção claramente dita
+  if (!op) return null;
 
   const mapaArthur = {
     71: { 1: 72, 2: 73, 3: 73 },
