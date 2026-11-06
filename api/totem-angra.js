@@ -1,56 +1,51 @@
-// api/totem-angra.js (Otimizado para Palavras Isoladas: "10", "7", "Mago", "Sim", "Não")
+// api/totem-angra.js (Flexível para "mago", "quero ser mago" ou "magu" + Faixas 94, 95 e 96)
 export const config = {
   api: { bodyParser: false },
 };
 
-// Faixas de sistema extras na pasta /mp3/
 const FAIXA_JOGAR_NOVAMENTE = 94;  // "Você deseja jogar novamente?"
 const FAIXA_DESPEDIDA = 95;        // "Até a próxima aventura!"
 const FAIXA_PULAR_INTRODUCAO = 96; // "Deseja pular a introdução?"
 
-// Lista de todas as faixas que encerram a partida (Vitória ou Morte) nas duas histórias
 const FAIXAS_FIM_DE_JOGO = new Set([
   102, 108, 109, 113, 117, 121, 123, 124, 127, 132, 133,
   51, 52, 53, 61, 62, 63, 64, 65, 66, 83, 84,
 ]);
 
-// ============================================================================
-// TABELA OFICIAL E ESTRITA DAS 33 AÇÕES DA SUMÉRIA (101 a 133)
-// ============================================================================
 const OPCOES_VALIDAS_SUMERIA = {
-  101: [7, 30, 16],     // Ação 1
-  102: [],              // Ação 2: Fim de jogo
-  103: [13, 20],        // Ação 3
-  104: [13, 20],        // Ação 4
-  105: [10, 28],        // Ação 5
-  106: [21, 17, 2],     // Ação 6
-  107: [12, 25],        // Ação 7
-  108: [],              // Ação 8: Fim de jogo
-  109: [],              // Ação 9: Fim de jogo
-  110: [19, 32],        // Ação 10
-  111: [18, 23],        // Ação 11
-  112: [15, 22, 4],     // Ação 12
-  113: [],              // Ação 13: Fim de jogo
-  114: [2, 8, 27],      // Ação 14
-  115: [29, 5],         // Ação 15
-  116: [27, 8],         // Ação 16
-  117: [],              // Ação 17: Fim de jogo
-  118: [9, 23, 26],     // Ação 18
-  119: [2, 32, 14],     // Ação 19
-  120: [9, 17],         // Ação 20
-  121: [],              // Ação 21: Fim de jogo
-  122: [24, 31],        // Ação 22
-  123: [],              // Ação 23: Fim de jogo
-  124: [],              // Ação 24: Fim de jogo
-  125: [21, 17],        // Ação 25
-  126: [33, 17],        // Ação 26
-  127: [],              // Ação 27: Fim de jogo
-  128: [11, 23],        // Ação 28
-  129: [3, 8],          // Ação 29
-  130: [6, 27],         // Ação 30
-  131: [2, 24],         // Ação 31
-  132: [],              // Ação 32: Fim de jogo
-  133: [],              // Ação 33: Fim de jogo
+  101: [7, 30, 16],
+  102: [],
+  103: [13, 20],
+  104: [13, 20],
+  105: [10, 28],
+  106: [21, 17, 2],
+  107: [12, 25],
+  108: [],
+  109: [],
+  110: [19, 32],
+  111: [18, 23],
+  112: [15, 22, 4],
+  113: [],
+  114: [2, 8, 27],
+  115: [29, 5],
+  116: [27, 8],
+  117: [],
+  118: [9, 23, 26],
+  119: [2, 32, 14],
+  120: [9, 17],
+  121: [],
+  122: [24, 31],
+  123: [],
+  124: [],
+  125: [21, 17],
+  126: [33, 17],
+  127: [],
+  128: [11, 23],
+  129: [3, 8],
+  130: [6, 27],
+  131: [2, 24],
+  132: [],
+  133: [],
 };
 
 function parseEstado(estadoStr) {
@@ -92,7 +87,7 @@ function normalizarTexto(str) {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Motor Determinístico RPG Online - Reconhecimento de Palavras Isoladas Ativo!",
+      status: "Motor Determinístico RPG Online - Seleção Flexível de Personagens Ativa!",
     });
   }
 
@@ -120,23 +115,19 @@ export default async function handler(req, res) {
     const wavBuffer = adicionarCabecalhoWav(pcmBuffer, 16000);
     const urlGemini = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-    // ========================================================================
-    // PROMPT OTIMIZADO PARA PALAVRAS ISOLADAS E NÚMEROS SOLTOS
-    // ========================================================================
     const promptTranscricaoCega = `
-Você é um transcritor de comandos de voz em Português do Brasil.
-ATENÇÃO: O usuário frequentemente fala APENAS UMA ÚNICA PALAVRA CURTA ou UM ÚNICO NÚMERO ISOLADO (exemplos: "dez", "sete", "dois", "trinta", "mago", "duende", "sábio", "camponês", "mercenário", "guerreiro", "sim", "não", "repetir").
+Você é um transcritor de comandos de voz curtos em Português do Brasil.
+ATENÇÃO: O usuário frequentemente fala nomes de personagens ("mago", "duende", "sábio", "camponês", "mercenário", "guerreiro", "magu") ou frases curtas ("quero ser mago", "sim", "não").
 
-REGRAS DE TRANSCRIÇÃO:
-1. Palavras isoladas e números falados sozinhos ("10", "7", "mago", "sim") SÃO VOZ HUMANA VÁLIDA ("eh_voz_humana": true).
-2. Só marque "eh_voz_humana": false se o áudio contiver exclusivamente silêncio, chiado puro ou batida seca sem nenhuma vogal humana.
-3. Se a pessoa disse um número (sozinho ou em frase), preencha "numero_dito" com o valor inteiro exato (ex: se disse "dez", coloque "transcricao": "dez" e "numero_dito": 10). Se não disse número, coloque null.
-4. Nunca altere o número falado por outro diferente.
+REGRAS OBRIGATÓRIAS:
+1. Palavras curtas e nomes de personagens falados sozinhos SÃO VOZ HUMANA VÁLIDA ("eh_voz_humana": true).
+2. Só marque "eh_voz_humana": false se o áudio contiver exclusivamente silêncio ou chiado sem nenhuma vogal humana.
+3. Se a pessoa disse um número, preencha "numero_dito" com o valor inteiro. Caso contrário, coloque null.
 
 Retorne APENAS este JSON:
 {
   "eh_voz_humana": true,
-  "transcricao": "palavra ou numero falado",
+  "transcricao": "palavra ou frase falada",
   "numero_dito": null
 }`;
 
@@ -174,14 +165,11 @@ Retorne APENAS este JSON:
     const fala = normalizarTexto(analise.transcricao);
     const temNumero = typeof analise.numero_dito === "number";
 
-    // IMPORTANTE: Aceita números de 1 dígito ("7", "2", "3") sem bloquear por tamanho de string!
     if (!analise.eh_voz_humana || (!fala && !temNumero)) {
       return res.status(200).json({ ignorado: true });
     }
 
-    // ========================================================================
     // 2. COMANDOS GLOBAIS DE SISTEMA
-    // ========================================================================
     if (fala.includes("repetir apresentacao") || fala.includes("menu principal") || fala.includes("trocar historia")) {
       const novoEst = { HISTORIA: "MENU", ETAPA: "MENU_PRINCIPAL", ESTILO: "NENHUM", ROTA: "MOINHO", ULTIMO_AUDIO: 85 };
       return res.status(200).json({
@@ -234,9 +222,7 @@ Retorne APENAS este JSON:
       });
     }
 
-    // ========================================================================
     // 3. TRATAMENTO DA PERGUNTA "JOGAR NOVAMENTE?" (FAIXA 94 OU FIM DE JOGO)
-    // ========================================================================
     if (est.ULTIMO_AUDIO === FAIXA_JOGAR_NOVAMENTE || FAIXAS_FIM_DE_JOGO.has(est.ULTIMO_AUDIO)) {
       const querJogar =
         fala === "sim" ||
@@ -286,9 +272,7 @@ Retorne APENAS este JSON:
       });
     }
 
-    // ========================================================================
     // 4. TRATAMENTO DA PERGUNTA "PULAR INTRODUÇÃO?" (ULTIMO_AUDIO = 96)
-    // ========================================================================
     if (est.ULTIMO_AUDIO === FAIXA_PULAR_INTRODUCAO) {
       const querNaoPular =
         fala === "nao" ||
@@ -342,9 +326,7 @@ Retorne APENAS este JSON:
       });
     }
 
-    // ========================================================================
     // 5. SELEÇÃO DE PERSONAGENS DA SUMÉRIA (ULTIMO_AUDIO = 86 a 92)
-    // ========================================================================
     if (
       (est.ULTIMO_AUDIO >= 86 && est.ULTIMO_AUDIO <= 92) ||
       est.ETAPA === "SELECAO_PERSONAGEM"
@@ -366,19 +348,8 @@ Retorne APENAS este JSON:
         }
       }
 
-      const querConfirmarDireto =
-        fala.includes("confirmar") ||
-        fala.includes("confirmo") ||
-        fala.includes("escolho") ||
-        fala.includes("quero esse") ||
-        fala.includes("quero ser") ||
-        fala.includes("comecar") ||
-        fala.includes("iniciar") ||
-        fala === "sim" ||
-        fala.includes("sim");
-
-      // Caso 1: Falou o nome do personagem junto com confirmação ("quero ser mago")
-      if (charDetectado && querConfirmarDireto) {
+      // Se o usuário disser o nome do personagem (ex: "mago" ou "quero ser mago"), já avança para a pergunta de pular introdução (96)
+      if (charDetectado) {
         est.HISTORIA = "SUMERIA";
         est.ETAPA = "PULAR_INTRO";
         est.ESTILO = charDetectado.estilo;
@@ -392,35 +363,6 @@ Retorne APENAS este JSON:
         });
       }
 
-      // Caso 2: Falou APENAS o nome do personagem sozinho ("Mago") -> Toca a descrição (87 a 92)
-      if (charDetectado) {
-        est.HISTORIA = "SUMERIA";
-        est.ETAPA = "SELECAO_PERSONAGEM";
-        est.ESTILO = charDetectado.estilo;
-        est.ULTIMO_AUDIO = charDetectado.faixa;
-        return res.status(200).json({
-          ignorado: false,
-          acao_sistema: "NENHUMA",
-          transcricao: analise.transcricao,
-          faixas: [charDetectado.faixa],
-          novo_estado: montarEstado(est),
-        });
-      }
-
-      // Caso 3: Já ouviu a descrição (87 a 92) e disse "sim" / "confirmar" / "quero"
-      if (est.ULTIMO_AUDIO >= 87 && est.ULTIMO_AUDIO <= 92 && (querConfirmarDireto || fala.includes("quero"))) {
-        est.HISTORIA = "SUMERIA";
-        est.ETAPA = "PULAR_INTRO";
-        est.ULTIMO_AUDIO = FAIXA_PULAR_INTRODUCAO;
-        return res.status(200).json({
-          ignorado: false,
-          acao_sistema: "NENHUMA",
-          transcricao: analise.transcricao,
-          faixas: [93, FAIXA_PULAR_INTRODUCAO],
-          novo_estado: montarEstado(est),
-        });
-      }
-
       return res.status(200).json({
         ignorado: false,
         acao_sistema: "NENHUMA",
@@ -430,11 +372,10 @@ Retorne APENAS este JSON:
       });
     }
 
-    // ========================================================================
     // 6. MENU PRINCIPAL (ULTIMO_AUDIO = 85)
-    // ========================================================================
     if (est.ULTIMO_AUDIO === 85) {
-      if (fala.includes("sumeria") || fala.includes("primeira") || fala === "1" || fala === "um") {
+      const numMenu = extrairNumeroFalado(analise.numero_dito, fala);
+      if (fala.includes("sumeria") || fala.includes("primeira") || numMenu === 1) {
         est.HISTORIA = "SUMERIA";
         est.ETAPA = "SELECAO_PERSONAGEM";
         est.ESTILO = "NENHUM";
@@ -448,7 +389,7 @@ Retorne APENAS este JSON:
           novo_estado: montarEstado(est),
         });
       }
-      if (fala.includes("arthur") || fala.includes("principe") || fala.includes("resgate") || fala.includes("segunda") || fala === "2" || fala === "dois") {
+      if (fala.includes("arthur") || fala.includes("principe") || fala.includes("resgate") || fala.includes("segunda") || numMenu === 2) {
         est.HISTORIA = "ARTHUR";
         est.ETAPA = "SELECAO";
         est.ESTILO = "NENHUM";
@@ -471,9 +412,7 @@ Retorne APENAS este JSON:
       });
     }
 
-    // ========================================================================
     // 7. MOTOR DETERMINÍSTICO DAS 33 AÇÕES DA SUMÉRIA (ULTIMO_AUDIO = 101 a 133)
-    // ========================================================================
     if (est.ULTIMO_AUDIO >= 101 && est.ULTIMO_AUDIO <= 133) {
       const opcoesPermitidasNaCena = OPCOES_VALIDAS_SUMERIA[est.ULTIMO_AUDIO] || [];
       const num = extrairNumeroFalado(analise.numero_dito, fala);
@@ -504,10 +443,8 @@ Retorne APENAS este JSON:
       });
     }
 
-    // ========================================================================
     // 8. CAMPANHA: O RESGATE DO PRÍNCIPE ARTHUR (ULTIMO_AUDIO = 2 a 84)
-    // ========================================================================
-    const resultadoArthur = processarPrincipeArthur(est, fala);
+    const resultadoArthur = processarPrincipeArthur(est, fala, analise.numero_dito);
     if (resultadoArthur) {
       return res.status(200).json({
         ignorado: false,
@@ -554,16 +491,16 @@ function extrairNumeroFalado(numeroJson, fala) {
   return null;
 }
 
-function identificarOpcaoArthur(fala) {
-  if (fala.includes("primeira") || fala.includes("opcao 1") || fala.includes("numero 1") || /\b1\b/.test(fala) || /\bum\b/.test(fala)) return 1;
-  if (fala.includes("segunda") || fala.includes("opcao 2") || fala.includes("numero 2") || /\b2\b/.test(fala) || /\bdois\b/.test(fala)) return 2;
-  if (fala.includes("terceira") || fala.includes("opcao 3") || fala.includes("numero 3") || /\b3\b/.test(fala) || /\btres\b/.test(fala)) return 3;
+function identificarOpcaoArthur(fala, numeroJson) {
+  if (numeroJson === 1 || fala.includes("primeira") || fala.includes("opcao 1") || fala.includes("numero 1") || /\b1\b/.test(fala) || /\bum\b/.test(fala)) return 1;
+  if (numeroJson === 2 || fala.includes("segunda") || fala.includes("opcao 2") || fala.includes("numero 2") || /\b2\b/.test(fala) || /\bdois\b/.test(fala)) return 2;
+  if (numeroJson === 3 || fala.includes("terceira") || fala.includes("opcao 3") || fala.includes("numero 3") || /\b3\b/.test(fala) || /\btres\b/.test(fala)) return 3;
   return null;
 }
 
-function processarPrincipeArthur(est, fala) {
+function processarPrincipeArthur(est, fala, numeroJson) {
   const u = est.ULTIMO_AUDIO;
-  const op = identificarOpcaoArthur(fala);
+  const op = identificarOpcaoArthur(fala, numeroJson);
 
   if (u === 2) {
     if (fala.includes("guardiao") || fala.includes("escudo") || op === 1) est.ESTILO = "GUARDIAO";
