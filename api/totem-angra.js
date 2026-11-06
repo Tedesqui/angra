@@ -1,10 +1,12 @@
-// api/totem-angra.js (Com Áudio 0094.mp3 "Deseja jogar novamente?" automático nos Finais)
+// api/totem-angra.js (Com Áudio 0094 Jogar Novamente, 0095 Despedida e 0096 Pular Introdução)
 export const config = {
   api: { bodyParser: false },
 };
 
-// Número da faixa MP3 com a pergunta: "Você deseja jogar novamente?" (/mp3/0094.mp3)
-const FAIXA_JOGAR_NOVAMENTE = 94;
+// Faixas de sistema extras na pasta /mp3/
+const FAIXA_JOGAR_NOVAMENTE = 94;  // "Você deseja jogar novamente?"
+const FAIXA_DESPEDIDA = 95;        // "Até a próxima aventura!"
+const FAIXA_PULAR_INTRODUCAO = 96; // "Deseja pular a introdução?"
 
 // Lista de todas as faixas que encerram a partida (Vitória ou Morte) nas duas histórias
 const FAIXAS_FIM_DE_JOGO = new Set([
@@ -91,7 +93,7 @@ function normalizarTexto(str) {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({
-      status: "Motor Determinístico RPG Online - Com Áudio 0094 (Jogar Novamente)!",
+      status: "Motor Determinístico RPG Online - Suporte a Faixas 0094, 0095 e 0096 Ativo!",
     });
   }
 
@@ -234,10 +236,10 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 3. RESPOSTA À PERGUNTA "VOCÊ DESEJA JOGAR NOVAMENTE?" (FIM DE JOGO OU 94)
+    // 3. TRATAMENTO DA PERGUNTA "JOGAR NOVAMENTE?" (FAIXA 94 OU FIM DE JOGO)
     // ========================================================================
     if (est.ULTIMO_AUDIO === FAIXA_JOGAR_NOVAMENTE || FAIXAS_FIM_DE_JOGO.has(est.ULTIMO_AUDIO)) {
-      if (
+      const querJogar =
         fala === "sim" ||
         fala.includes("sim ") ||
         fala.includes("quero") ||
@@ -245,8 +247,16 @@ Retorne APENAS este JSON:
         fala.includes("comecar") ||
         fala.includes("vamos") ||
         fala.includes("claro") ||
-        fala.includes("bora")
-      ) {
+        fala.includes("bora");
+
+      const querParar =
+        fala === "nao" ||
+        fala.includes("nao ") ||
+        fala.includes("parar") ||
+        fala.includes("chega") ||
+        fala.includes("sair");
+
+      if (querJogar) {
         const novoEst = { HISTORIA: "MENU", ETAPA: "MENU_PRINCIPAL", ESTILO: "NENHUM", ROTA: "MOINHO", ULTIMO_AUDIO: 85 };
         return res.status(200).json({
           ignorado: false,
@@ -256,7 +266,18 @@ Retorne APENAS este JSON:
           novo_estado: montarEstado(novoEst),
         });
       }
-      // Se disser "não" ou qualquer outra coisa no fim de jogo, permanece aguardando sem tocar nada
+
+      if (querParar) {
+        est.ULTIMO_AUDIO = FAIXA_DESPEDIDA;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [FAIXA_DESPEDIDA],
+          novo_estado: montarEstado(est),
+        });
+      }
+
       return res.status(200).json({
         ignorado: false,
         acao_sistema: "NENHUMA",
@@ -267,7 +288,66 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 4. SELEÇÃO DE PERSONAGENS DA SUMÉRIA (ULTIMO_AUDIO = 86 a 92)
+    // 4. TRATAMENTO DA PERGUNTA "PULAR INTRODUÇÃO?" (ULTIMO_AUDIO = 96)
+    // ========================================================================
+    if (est.ULTIMO_AUDIO === FAIXA_PULAR_INTRODUCAO) {
+      const querNaoPular =
+        fala === "nao" ||
+        fala.includes("nao ") ||
+        fala.includes("ouvir") ||
+        fala.includes("escutar") ||
+        fala.includes("normal") ||
+        fala.includes("completa");
+
+      const querSimPular =
+        !querNaoPular &&
+        (fala === "sim" ||
+          fala.includes("sim ") ||
+          fala.includes("pular") ||
+          fala.includes("quero") ||
+          fala.includes("direto") ||
+          fala.includes("pode"));
+
+      // Se disser "Sim": pula 98 e 99 e vai direto para o 0100.mp3 seguido do 0101.mp3 (Ação 1)
+      if (querSimPular) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "AVENTURA";
+        est.ULTIMO_AUDIO = 101;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [100, 101],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      // Se disser "Não": reproduz a introdução histórica completa (98, 99, 100, 101)
+      if (querNaoPular) {
+        est.HISTORIA = "SUMERIA";
+        est.ETAPA = "AVENTURA";
+        est.ULTIMO_AUDIO = 101;
+        return res.status(200).json({
+          ignorado: false,
+          acao_sistema: "NENHUMA",
+          transcricao: analise.transcricao,
+          faixas: [98, 99, 100, 101],
+          novo_estado: montarEstado(est),
+        });
+      }
+
+      // Qualquer outra fala fora de Sim/Não na faixa 96 é ignorada
+      return res.status(200).json({
+        ignorado: false,
+        acao_sistema: "NENHUMA",
+        transcricao: analise.transcricao,
+        faixas: [],
+        novo_estado: montarEstado(est),
+      });
+    }
+
+    // ========================================================================
+    // 5. SELEÇÃO DE PERSONAGENS DA SUMÉRIA (ULTIMO_AUDIO = 86 a 92)
     // ========================================================================
     if (
       (est.ULTIMO_AUDIO >= 86 && est.ULTIMO_AUDIO <= 92) ||
@@ -299,20 +379,22 @@ Retorne APENAS este JSON:
         fala.includes("iniciar") ||
         fala === "sim";
 
+      // Caso 1: Falou o nome do personagem já confirmando ("quero ser mago") -> Toca descrição + 93 + 96 (Pergunta de pular introdução)
       if (charDetectado && querConfirmarDireto) {
         est.HISTORIA = "SUMERIA";
-        est.ETAPA = "AVENTURA";
+        est.ETAPA = "PULAR_INTRO";
         est.ESTILO = charDetectado.estilo;
-        est.ULTIMO_AUDIO = 101;
+        est.ULTIMO_AUDIO = FAIXA_PULAR_INTRODUCAO;
         return res.status(200).json({
           ignorado: false,
           acao_sistema: "NENHUMA",
           transcricao: analise.transcricao,
-          faixas: [charDetectado.faixa, 93, 98, 99, 100, 101],
+          faixas: [charDetectado.faixa, 93, FAIXA_PULAR_INTRODUCAO],
           novo_estado: montarEstado(est),
         });
       }
 
+      // Caso 2: Falou apenas o nome do personagem ("Mago") -> Toca só a descrição (87 a 92)
       if (charDetectado) {
         est.HISTORIA = "SUMERIA";
         est.ETAPA = "SELECAO_PERSONAGEM";
@@ -327,15 +409,16 @@ Retorne APENAS este JSON:
         });
       }
 
+      // Caso 3: Já ouviu a descrição (87 a 92) e confirmou ("confirmar", "quero esse", "sim") -> Toca 93 + 96 (Pergunta de pular introdução)
       if (est.ULTIMO_AUDIO >= 87 && est.ULTIMO_AUDIO <= 92 && querConfirmarDireto) {
         est.HISTORIA = "SUMERIA";
-        est.ETAPA = "AVENTURA";
-        est.ULTIMO_AUDIO = 101;
+        est.ETAPA = "PULAR_INTRO";
+        est.ULTIMO_AUDIO = FAIXA_PULAR_INTRODUCAO;
         return res.status(200).json({
           ignorado: false,
           acao_sistema: "NENHUMA",
           transcricao: analise.transcricao,
-          faixas: [93, 98, 99, 100, 101],
+          faixas: [93, FAIXA_PULAR_INTRODUCAO],
           novo_estado: montarEstado(est),
         });
       }
@@ -350,7 +433,7 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 5. MENU PRINCIPAL (ULTIMO_AUDIO = 85)
+    // 6. MENU PRINCIPAL (ULTIMO_AUDIO = 85)
     // ========================================================================
     if (est.ULTIMO_AUDIO === 85) {
       if (fala.includes("sumeria") || fala.includes("primeira")) {
@@ -391,7 +474,7 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 6. MOTOR DETERMINÍSTICO DAS 33 AÇÕES DA SUMÉRIA (ULTIMO_AUDIO = 101 a 133)
+    // 7. MOTOR DETERMINÍSTICO DAS 33 AÇÕES DA SUMÉRIA (ULTIMO_AUDIO = 101 a 133)
     // ========================================================================
     if (est.ULTIMO_AUDIO >= 101 && est.ULTIMO_AUDIO <= 133) {
       const opcoesPermitidasNaCena = OPCOES_VALIDAS_SUMERIA[est.ULTIMO_AUDIO] || [];
@@ -401,7 +484,6 @@ Retorne APENAS este JSON:
         const proximaFaixa = 100 + num;
         est.ULTIMO_AUDIO = proximaFaixa;
 
-        // Se a faixa de destino for um Fim de Jogo (Morte ou Vitória), anexa o áudio 0094.mp3!
         const faixasParaTocar = FAIXAS_FIM_DE_JOGO.has(proximaFaixa)
           ? [proximaFaixa, FAIXA_JOGAR_NOVAMENTE]
           : [proximaFaixa];
@@ -425,7 +507,7 @@ Retorne APENAS este JSON:
     }
 
     // ========================================================================
-    // 7. CAMPANHA: O RESGATE DO PRÍNCIPE ARTHUR (ULTIMO_AUDIO = 2 a 84)
+    // 8. CAMPANHA: O RESGATE DO PRÍNCIPE ARTHUR (ULTIMO_AUDIO = 2 a 84)
     // ========================================================================
     const resultadoArthur = processarPrincipeArthur(est, fala);
     if (resultadoArthur) {
@@ -548,7 +630,6 @@ function processarPrincipeArthur(est, fala) {
 
   est.ULTIMO_AUDIO = prox;
 
-  // Se o destino no Príncipe Arthur for Fim de Jogo (Morte ou Vitória), também toca o 0094.mp3!
   const listaFaixas = FAIXAS_FIM_DE_JOGO.has(prox)
     ? [prox, FAIXA_JOGAR_NOVAMENTE]
     : [prox];
